@@ -6,6 +6,7 @@
 
 # Persistent data (includes data/vault/, the Obsidian second-brain vault; never commit)
 data/
+.archive/
 
 # OS / Editor files
 .DS_Store
