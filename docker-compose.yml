@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   app-network:
     driver: bridge
@@ -15,7 +13,29 @@ services:
       - DATA_DIR=/app/data
       - INITIAL_PASSWORD=${NINEROUTER_INITIAL_PASSWORD}
       - JWT_SECRET=${NINEROUTER_JWT_SECRET}
+      - HEADROOM_URL=http://headroom:8787
     volumes:
       - ./data/9router:/app/data
     networks:
       - app-network
+
+  # 9router calls /v1/compress, then routes to providers itself.
+  # No host port or Tailscale Serve rule: 9router cannot send a proxy token.
+  # Reachable only on the Docker network (and from the Docker host).
+  headroom:
+    image: ghcr.io/headroomlabs-ai/headroom:0.38.0
+    container_name: headroom
+    restart: unless-stopped
+    environment:
+      # /v1/compress is loopback-only by default; permit the sibling container.
+      - HEADROOM_COMPRESS_ALLOW_REMOTE=1
+      - HOME=/home/nonroot
+      - HEADROOM_WORKSPACE_DIR=/home/nonroot/.headroom
+      - HEADROOM_CONFIG_DIR=/home/nonroot/.headroom/config
+    volumes:
+      - headroom_workspace:/home/nonroot/.headroom
+    networks:
+      - app-network
+
+volumes:
+  headroom_workspace:

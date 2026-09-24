@@ -4,7 +4,7 @@
 # Local choice of dashboard user (see scripts/deploy.sh)
 .dashboard-user
 
-# Persistent data
+# Persistent data (includes data/vault/, the Obsidian second-brain vault; never commit)
 data/
 
 # OS / Editor files

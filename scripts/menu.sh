@@ -10,7 +10,7 @@ TITLE="VPS control panel"
 pause() { read -rp $'\nPress Enter to return to the menu...' _; }
 
 status_text() {
-  local user note="" unit active holder ip router
+  local user note="" unit active holder ip router headroom
   user=$(cat .dashboard-user 2>/dev/null) || { user=hermes; note=undeployed; }
   unit="hermes-dashboard@$user"
   active=$(systemctl list-units 'hermes-dashboard@*' --state=active --plain --no-legend | awk '{print $1}' | xargs)
@@ -18,6 +18,7 @@ status_text() {
   ip=$(tailscale ip -4 2>/dev/null | head -1)
   # ponytail: no docker group yet (needs re-login after 10-docker) reads as "unknown"; sudo would prompt inside the TUI.
   router=$(docker inspect -f '{{.State.Status}}' 9router 2>/dev/null) || router="unknown (not created / no docker access)"
+  headroom=$(docker inspect -f '{{.State.Status}}' headroom 2>/dev/null) || headroom="unknown (not created / no docker access)"
 
   # Session groups (id -Gn) vs. account groups (id -Gn $me): differ right after usermod, until re-login.
   local me groups relogin=""
@@ -49,6 +50,9 @@ status_text() {
   section "9router (docker)"
   row "Container:"       "$router" \
       "URL:"             "http://${ip:-<no tailscale ip>}:20128"
+  section "Headroom (docker)"
+  row "Container:"       "$headroom" \
+      "URL:"             "http://headroom:8787 (Docker-internal only)"
 }
 
 pick_user() {
