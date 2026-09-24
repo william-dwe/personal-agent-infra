@@ -14,7 +14,7 @@ Butler application code.
 | `/home/ubuntu/services/second-brain-service` | `ubuntu` | Legacy checkout. Retire it after migration; don't add features to it. |
 
 - Before editing any `services/...` path, check its absolute path and owner. Similar-looking copies have been edited by mistake before.
-- There are no Git remotes, on purpose. Don't add remotes or push without William's approval.
+- Remote `origin` is the PUBLIC repo github.com/william-dwe/personal-agent-infra. Push only with William's approval, and never commit `.env`, `data/`, real IPs, or tokens.
 - Don't change global Git config. Set the commit identity per command, e.g. `git -c user.name=Ubuntu -c user.email=ubuntu@localhost.localdomain commit`.
 
 ## What runs here
@@ -28,7 +28,7 @@ Butler application code.
 - Only one user can run the dashboard, because only one process can listen on `:9119`. `scripts/deploy.sh <user>` links the unit, stops the others, and restarts the dashboard, which drops open browser and agent sessions.
 - 9router calls Headroom's `/v1/compress` without a token. For that reason Headroom must not publish a host port or a Tailscale Serve rule. `scripts/check-headroom.sh` checks this.
 - The network is locked down by UFW (`scripts/install/40-firewall.sh`): incoming traffic is denied by default, except `tailscale0` and port 22. The dashboard runs with `--insecure` on `0.0.0.0` and depends on this firewall.
-- **Known gap:** Docker-published ports (`20128`) bypass UFW. Check that the provider's firewall blocks them, or bind to the Tailscale IP.
+- 9router is published only on the Tailscale IP (`TAILSCALE_IP` in `.env`; get it with `tailscale ip -4`). Never publish on `0.0.0.0`, because Docker-published ports bypass UFW.
 
 ## Layout
 
