@@ -2,7 +2,9 @@
 
 VPS infrastructure for Hermes Agent dashboard, 9router LLM router, and Headroom prompt-compression sidecar.
 
-See [architecture diagram](docs/architecture.html). Ownership and agent rules live in [AGENTS.md](AGENTS.md).
+![personal-agent-infra architecture](docs/architecture.svg)
+
+Interactive version with summary cards: [docs/architecture.html](docs/architecture.html). Ownership and agent rules live in [AGENTS.md](AGENTS.md).
 
 ## Components
 
