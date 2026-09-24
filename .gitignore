@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+# Local choice of dashboard user (see scripts/deploy.sh)
+.dashboard-user
+
 # Persistent data
 data/
 
