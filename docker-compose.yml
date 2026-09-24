@@ -1,0 +1,21 @@
+version: '3.8'
+
+networks:
+  app-network:
+    driver: bridge
+
+services:
+  9router:
+    image: decolua/9router:latest
+    container_name: 9router
+    restart: unless-stopped
+    ports:
+      - "20128:20128"
+    environment:
+      - DATA_DIR=/app/data
+      - INITIAL_PASSWORD=${NINEROUTER_INITIAL_PASSWORD}
+      - JWT_SECRET=${NINEROUTER_JWT_SECRET}
+    volumes:
+      - ./data/9router:/app/data
+    networks:
+      - app-network

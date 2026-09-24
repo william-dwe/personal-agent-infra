@@ -1,0 +1,9 @@
+# Environment variables
+.env
+
+# Persistent data
+data/
+
+# OS / Editor files
+.DS_Store
+*.log
