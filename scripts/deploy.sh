@@ -22,4 +22,6 @@ done
 
 sudo systemctl enable "hermes-dashboard@$user"
 sudo systemctl restart "hermes-dashboard@$user"
+sudo systemctl enable "hermes-gateway@$user"
+sudo systemctl restart "hermes-gateway@$user"
 systemctl --no-pager --lines=5 status "hermes-dashboard@$user" || true
