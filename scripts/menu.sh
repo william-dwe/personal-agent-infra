@@ -88,17 +88,30 @@ run_install() {
   pause
 }
 
+toggle_hermes_sudo() {
+  local f=/etc/sudoers.d/90-hermes-agent action msg
+  clear; echo "Checking hermes sudo grant (your sudo password may be asked)..."
+  if sudo test -f "$f"; then
+    action=off; msg="REVOKE hermes passwordless sudo?\n\nRemoves $f. hermes' sudo group membership and Docker access are NOT changed."
+  else
+    action=on;  msg="GRANT hermes passwordless sudo?\n\nhermes (and every agent running as hermes) gets unrestricted root without a password."
+  fi
+  whiptail --title "$TITLE" --yesno "$msg" 12 70 || return
+  clear; sudo ./scripts/hermes-sudo.sh "$action"; pause
+}
+
 while true; do
   status=$(status_text)
   # ponytail: capped at terminal height; on very short terminals the header gets clipped.
   h=$(( $(wc -l <<<"$status") + 15 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
-  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 7 \
+  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 8 \
     1 "Status (systemctl)" \
     2 "Switch dashboard user (hermes / ubuntu)" \
     3 "Restart dashboard" \
     4 "Follow dashboard logs (Ctrl-C to return)" \
     5 "Run install steps (pick)" \
     6 "Run full init (all steps)" \
+    7 "Grant / revoke hermes passwordless sudo" \
     q "Quit" 3>&1 1>&2 2>&3) || break
   user=$(cat .dashboard-user 2>/dev/null || echo hermes)
   case $choice in
@@ -108,6 +121,7 @@ while true; do
     4) clear; journalctl -u "hermes-dashboard@$user" -n 50 -f; pause ;;
     5) run_install ;;
     6) clear; ./scripts/init.sh; pause ;;
+    7) toggle_hermes_sudo ;;
     q) break ;;
   esac
 done
