@@ -1,0 +1,41 @@
+[Unit]
+Description=Butler backend (Go API, task DB) on 127.0.0.1:8765
+After=network.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+UMask=0007
+EnvironmentFile=-/home/ubuntu/services/personal-agent-infra/.env
+Environment=BUTLER_DATA=/var/lib/butler BUTLER_PORT=8765
+ExecStart=/home/hermes/services/butler/backend/bin/butler serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=full
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+AmbientCapabilities=
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/butler
+# Wiki protection is application-level only (read-only notes adapter, GET/HEAD routes); no filesystem sandbox for the wiki by decision.
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

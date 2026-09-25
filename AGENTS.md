@@ -22,6 +22,7 @@ Butler application code.
 | Component | Defined in | Runs as | Reach it at |
 |---|---|---|---|
 | Hermes dashboard (web + TUI) | `systemd/hermes-dashboard@.service` | `hermes-dashboard@<user>` (`hermes` or `ubuntu`, stored in `.dashboard-user`) | `http://<tailscale-ip>:9119` |
+| Butler dashboard + API | `systemd/butler-{backend,frontend}.service` | `hermes` | Tailscale HTTPS `:8444` -> `127.0.0.1:3100` -> `127.0.0.1:8765` |
 | 9router (LLM router) | `docker-compose.yml` | container `9router` | `http://<tailscale-ip>:20128` |
 | Headroom (prompt compression) | `docker-compose.yml` | container `headroom` | `http://headroom:8787`, Docker network only |
 
@@ -37,7 +38,7 @@ docker-compose.yml             9router + headroom
 systemd/                       hermes-dashboard@.service template (EnvironmentFile = this repo's .env)
 scripts/init.sh                runs scripts/install/NN-*.sh in order; finished steps print "skipping"
 scripts/install/NN-*.sh        idempotent bootstrap steps: system, docker, tailscale, zsh, firewall,
-                               hermes user, hermes agent, headroom
+                               hermes user, hermes agent, headroom, butler data dir, dashboard serve + wiki view
 scripts/deploy.sh [user]       link unit + switch the dashboard user
 scripts/menu.sh                whiptail control panel (status, deploy, logs, install, hermes sudo)
 scripts/hermes-sudo.sh         sudo ./scripts/hermes-sudo.sh on|off|status
@@ -52,6 +53,8 @@ Not tracked (see `.gitignore`), and never committed: `.env` (secrets, mode 600),
 - `scripts/hermes-sudo.sh on` writes `/etc/sudoers.d/90-hermes-agent`, which gives `hermes` passwordless root. `off` removes only that file.
 - Membership in the `docker` group is also root-equivalent, so `hermes` in `docker` means `hermes` is effectively root.
 - Mention either one whenever a change touches `hermes` permissions.
+- `/var/lib/butler` (`scripts/install/80-butler-data.sh`) is read-write for exactly `hermes` and `ubuntu` via ACLs, no one else. It holds William's task DB and attachments.
+- Butler units run as `hermes`, loopback-only. Wiki protection is application-level only (read-only notes adapter, GET/HEAD API); no systemd or ACL wiki sandbox.
 
 ## Working here
 

@@ -13,6 +13,7 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 | Hermes dashboard | `hermes-dashboard@<user>` systemd template | `http://<tailscale-ip>:9119` |
 | 9router | Docker container; published host port | `http://<tailscale-ip>:20128` |
 | Headroom | Docker `app-network` only | `http://headroom:8787` |
+| Butler dashboard + API | `butler-frontend.service` + `butler-backend.service`, both `hermes`; loopback only | Tailscale HTTPS `:8444` |
 
 ## Quick start
 
@@ -44,6 +45,8 @@ docker compose up -d
 | `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
 | `scripts/install/60-hermes-agent.sh` | Install Hermes Agent for `hermes`. |
 | `scripts/install/70-headroom.sh` | Reconcile Headroom and 9router containers. |
+| `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, the task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
+| `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki` to the wiki root and persist Tailscale Serve `:8444`; does not start Butler units. |
 
 ## Security
 
