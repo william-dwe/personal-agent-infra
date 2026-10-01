@@ -17,16 +17,26 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 
 ## Quick start
 
+> **Prerequisite:** Install Git and configure GitHub SSH access before cloning or deploying.
+>
+> ```bash
+> sudo apt update && sudo apt install -y git openssh-client
+> ssh-keygen -t ed25519 -C "you@example.com"
+> cat ~/.ssh/id_ed25519.pub
+> # Add output at https://github.com/settings/ssh/new, then verify:
+> ssh -T git@github.com
+> ```
+
 ```bash
 ./scripts/init.sh
 cp .env.example .env
-# Fill NINEROUTER_* secrets and TAILSCALE_IP (from `tailscale ip -4`) in .env.
+# Fill NINEROUTER_* secrets in .env. Setup detects this server's Tailscale IPv4 automatically.
 docker compose up -d
 ./scripts/deploy.sh [user]
 ./scripts/menu.sh
 ```
 
-`init.sh` runs install steps in order and skips finished steps. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
+`init.sh` runs install steps in order and skips finished steps. `70-headroom` detects current Tailscale IPv4 and updates `TAILSCALE_IP` in `.env` before starting 9router. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
 
 ## Scripts
 
@@ -44,15 +54,17 @@ docker compose up -d
 | `scripts/install/40-firewall.sh` | Configure UFW. |
 | `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
 | `scripts/install/60-hermes-agent.sh` | Install Hermes Agent for `hermes`. |
-| `scripts/install/70-headroom.sh` | Reconcile Headroom and 9router containers. |
+| `scripts/install/70-headroom.sh` | Reconcile Headroom and 9router containers; detect Tailscale address and MagicDNS origin. |
+| `scripts/install/75-services.sh` | Clone Butler and second-brain-wiki under `/home/hermes/services`. Override public clone URLs with `BUTLER_REPO_URL` and `WIKI_REPO_URL`. |
 | `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, the task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
 | `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki` to the wiki root and persist Tailscale Serve `:8444`; does not start Butler units. |
 
 ## Env sync
 
-Copy `scripts/laptop/envsync.sh` to laptop, then source it from `~/.zshrc`:
+Copy `scripts/laptop/envsync.sh` to laptop, then source it from `~/.zshrc` with target host:
 
 ```sh
+export ENVSYNC_HOST=ubuntu@<server>.<tailnet>.ts.net
 source /path/to/envsync.sh
 ```
 

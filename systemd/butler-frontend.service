@@ -8,7 +8,7 @@ Type=simple
 User=hermes
 Group=hermes
 UMask=0007
-EnvironmentFile=-/home/ubuntu/services/personal-agent-infra/.env
+EnvironmentFile=-/etc/personal-agent-infra.env
 Environment=NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 BUTLER_API=http://127.0.0.1:8765 HOME=/tmp
 WorkingDirectory=/home/hermes/services/butler/frontend
 ExecStart=/home/hermes/.hermes/node/bin/node node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3100

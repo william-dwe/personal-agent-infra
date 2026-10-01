@@ -7,6 +7,6 @@ Requires=butler-backend.service
 Type=oneshot
 User=hermes
 Group=hermes
-ExecStart=/home/ubuntu/services/personal-agent-infra/scripts/butler-review-queue.sh
+ExecStart=/usr/local/lib/personal-agent-infra/butler-review-queue.sh
 TimeoutStartSec=45min
 NoNewPrivileges=yes

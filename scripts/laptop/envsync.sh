@@ -1,6 +1,7 @@
 # Source from laptop shell rc: source /path/to/envsync.sh
 # Optional reminder: call envcheck from git pre-push hook or zsh chpwd. Do not install hook here.
-: "${ENVSYNC_HOST:=ubuntu@vps-sumopod-2.tailf18fcb.ts.net}"
+# Set ENVSYNC_HOST once per laptop, e.g. export ENVSYNC_HOST=ubuntu@server.tailnet.ts.net.
+: "${ENVSYNC_HOST:?set ENVSYNC_HOST to ubuntu@<server>.<tailnet>.ts.net}"
 
 _envsync_name() {
     if [ -n "$1" ]; then printf '%s\n' "$1"; return; fi

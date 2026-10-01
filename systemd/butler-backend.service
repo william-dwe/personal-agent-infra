@@ -7,7 +7,7 @@ Type=simple
 User=hermes
 Group=hermes
 UMask=0007
-EnvironmentFile=-/home/ubuntu/services/personal-agent-infra/.env
+EnvironmentFile=-/etc/personal-agent-infra.env
 Environment=BUTLER_DATA=/var/lib/butler BUTLER_PORT=8765
 ExecStart=/home/hermes/services/butler/backend/bin/butler serve
 Restart=on-failure

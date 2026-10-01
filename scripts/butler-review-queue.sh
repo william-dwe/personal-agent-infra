@@ -4,7 +4,8 @@
 set -euo pipefail
 
 token_file=/home/hermes/.hermes/profiles/librarian/secrets/butler-librarian.token
-prompt=/home/ubuntu/services/personal-agent-infra/scripts/butler-review-queue.prompt.md
+root=$(cd "$(dirname "$0")/.." && pwd)
+prompt=$root/scripts/butler-review-queue.prompt.md
 base=http://127.0.0.1:8765/api/librarian/review-packets
 
 exec 9>/var/lib/butler/review-queue.lock

@@ -18,7 +18,7 @@ class EnvsyncTest(unittest.TestCase):
         shim.mkdir()
         (shim / "ssh").write_text("#!/bin/sh\nhost=$1; shift\ncase $1 in\n  .local/bin/env-put) cmd=put ;;\n  .local/bin/env-get) cmd=get ;;\n  .local/bin/env-diff) cmd=diff ;;\n  .local/bin/env-keys) cmd=keys ;;\nesac\nshift\nexec python3 \"$ENVSYNC_STORE\" \"$cmd\" \"$@\"\n")
         (shim / "ssh").chmod(0o755)
-        self.env = os.environ | {"PATH": str(shim) + ":" + os.environ["PATH"], "ENVSTORE_DIR": str(self.root / "secrets"), "ENVSTORE_INFRA": str(self.root / "infra"), "ENVSYNC_STORE": str(STORE)}
+        self.env = os.environ | {"PATH": str(shim) + ":" + os.environ["PATH"], "ENVSTORE_DIR": str(self.root / "secrets"), "ENVSTORE_INFRA": str(self.root / "infra"), "ENVSYNC_STORE": str(STORE), "ENVSYNC_HOST": "test@host"}
         self.file = self.root / ".env"
 
     def tearDown(self): self.tmp.cleanup()

@@ -28,7 +28,7 @@ def valid_name(name):
 
 def target_for(name, directory):
     if name == "infra":
-        return Path(os.environ.get("ENVSTORE_INFRA", "/home/ubuntu/services/personal-agent-infra/.env"))
+        return Path(os.environ.get("ENVSTORE_INFRA", Path(__file__).resolve().parents[1] / ".env"))
     return directory / (name + ".env")
 
 def read_target(path):
