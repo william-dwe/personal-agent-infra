@@ -1,0 +1,12 @@
+[Unit]
+Description=Butler review queue: start librarian only when packets are waiting
+After=butler-backend.service
+Requires=butler-backend.service
+
+[Service]
+Type=oneshot
+User=hermes
+Group=hermes
+ExecStart=/home/ubuntu/services/personal-agent-infra/scripts/butler-review-queue.sh
+TimeoutStartSec=45min
+NoNewPrivileges=yes

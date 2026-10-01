@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Butler review queue every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

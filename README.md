@@ -48,6 +48,22 @@ docker compose up -d
 | `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, the task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
 | `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki` to the wiki root and persist Tailscale Serve `:8444`; does not start Butler units. |
 
+## Env sync
+
+Copy `scripts/laptop/envsync.sh` to laptop, then source it from `~/.zshrc`:
+
+```sh
+source /path/to/envsync.sh
+```
+
+Commands: `envpush [name] [file]`, `envpull [name] [file]`, `envdiff [name] [file]`, `envkeys [name]`, `envlist`, and `envcheck`. Name defaults to repo directory; file defaults to `./.env`.
+
+VPS files live in `~/secrets/<name>.env`; `infra` maps to this repo's `.env`. `~/secrets/.history` keeps 10 prior versions per name. Restore by copying wanted history file back through `envpush`, never by exposing values in chat.
+
+Changing `infra` prints restart-needed note. Ask orchestrator; do not restart services yourself.
+
+**Whenever you change a `.env`, run `envpush` (or `envpull` on other machine).**
+
 ## Security
 
 - UFW denies incoming traffic by default; it allows `tailscale0` and TCP `22`.

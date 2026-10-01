@@ -48,6 +48,12 @@ scripts/check-headroom.sh      read-only smoke test for 9router -> headroom
 
 Not tracked (see `.gitignore`), and never committed: `.env` (secrets, mode 600), `.dashboard-user`, `data/` (9router DB), `.archive/`.
 
+## Env secrets
+
+- Agents may run `env-keys`, `env-diff`, and `env-get` with no name for listing. Agents never run `env-get <name>`, never read or print values; report set/missing only.
+- When adding, renaming, or removing env key, or updating `.env.example`, final reply must say: `env changed: <KEY names> — run envpush <name> from the machine that has the new values (or envpull <name> on the other).`
+- When key missing, ask William to add it on his machine and `envpush`; never ask for values in chat.
+
 ## Security-sensitive knobs
 
 - `scripts/hermes-sudo.sh on` writes `/etc/sudoers.d/90-hermes-agent`, which gives `hermes` passwordless root. `off` removes only that file.
