@@ -1,7 +1,5 @@
 # dotenvx private key material and plaintext environment variants.
 # .env itself IS committed only when dotenvx-encrypted.
-.env.keys
-.env.keys.*
 .env.*
 !.env.example
 *.key
