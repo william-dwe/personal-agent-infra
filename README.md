@@ -1,6 +1,6 @@
 # personal-agent-infra
 
-VPS infrastructure for Hermes Agent dashboard, 9router LLM router, and Headroom prompt-compression sidecar.
+VPS infrastructure for Hermes Agent dashboard, Butler dashboard and API, 9router LLM router, and Headroom prompt-compression sidecar.
 
 ![personal-agent-infra architecture](docs/architecture.svg)
 
@@ -13,7 +13,7 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 | Hermes dashboard | `hermes-dashboard@<user>` systemd template | `http://<tailscale-ip>:9119` |
 | 9router | Docker container; published host port | `http://<tailscale-ip>:20128` |
 | Headroom | Docker `app-network` only | `http://headroom:8787` |
-| Butler dashboard + API | `butler-frontend.service` + `butler-backend.service`, both `hermes`; loopback only | Tailscale HTTPS `:8444` |
+| Butler dashboard + API | Compose project `butler` from `/home/hermes/services/butler/compose.yml`; backend joins core Docker network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` |
 
 ## Quick start
 
@@ -28,15 +28,16 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 > ```
 
 ```bash
+# Install prerequisites and dotenvx CLI only.
+./scripts/init.sh dotenvx
+
+# Complete idempotent VPS bootstrap and dashboard deployment.
 ./scripts/init.sh
-cp .env.example .env
-# Fill NINEROUTER_* secrets in .env. Setup detects this server's Tailscale IPv4 automatically.
-docker compose up -d
 ./scripts/deploy.sh [user]
 ./scripts/menu.sh
 ```
 
-`init.sh` runs install steps in order and skips finished steps. `70-headroom` detects current Tailscale IPv4 and updates `TAILSCALE_IP` in `.env` before starting 9router. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
+`init.sh` runs install steps in order and skips finished steps. `65-dotenvx` installs the dotenvx CLI and its global git clean filter. `70-headroom` and `81-butler-dashboard` decrypt the committed, dotenvx-encrypted `.env` into `/etc/personal-agent-infra.env` before using it; it is a root-owned regular file, never a symlink to repo `.env`. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
 
 ## Scripts
 
@@ -47,34 +48,39 @@ docker compose up -d
 | `scripts/menu.sh` | Whiptail control panel for status, deploy, logs, installs, and Hermes sudo. |
 | `scripts/check-headroom.sh` | Read-only 9router-to-Headroom smoke test. |
 | `scripts/hermes-sudo.sh on\|off\|status` | Manage Hermes passwordless sudo grant. |
+| `scripts/butler.sh up\|restart\|down\|status\|logs` | Scoped Butler Compose control; `up` rebuilds images and exports host CLI. |
+| `scripts/dotenv-env.sh render\|status` | Decrypt committed `.env` into `/etc/personal-agent-infra.env`, or report setup status without values. |
 | `scripts/install/00-system.sh` | Update system packages. |
 | `scripts/install/10-docker.sh` | Install Docker and add current user to `docker`. |
 | `scripts/install/20-tailscale.sh` | Install and connect Tailscale. |
 | `scripts/install/30-zsh.sh` | Install Zsh and Oh My Zsh. |
 | `scripts/install/40-firewall.sh` | Configure UFW. |
 | `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
-| `scripts/install/60-hermes-agent.sh` | Install Hermes Agent for `hermes`. |
-| `scripts/install/70-headroom.sh` | Reconcile Headroom and 9router containers; detect Tailscale address and MagicDNS origin. |
+| `scripts/install/65-dotenvx.sh` | Install dotenvx CLI and its global git clean filter. |
+| `scripts/install/70-headroom.sh` | Render runtime environment, then reconcile Headroom and 9router containers. |
 | `scripts/install/75-services.sh` | Clone Butler and second-brain-wiki under `/home/hermes/services`. Override public clone URLs with `BUTLER_REPO_URL` and `WIKI_REPO_URL`. |
-| `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, the task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
-| `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki` to the wiki root and persist Tailscale Serve `:8444`; does not start Butler units. |
+| `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
+| `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
 
-## Env sync
+## Secrets
 
-Copy `scripts/laptop/envsync.sh` to laptop, then source it from `~/.zshrc` with target host:
+`.env` at repo root IS committed to this public repo, and that is intentional: it holds [dotenvx](https://dotenvx.com)-encrypted values (`KEY=encrypted:...`), not plaintext. The only secret-bearing file is the private key at `/etc/dotenvx/personal-agent-infra.env.keys`, root-owned mode `0600`, generated once on the VPS and never committed, copied off the VPS, or placed in the repo. `scripts/install/65-dotenvx.sh` installs the dotenvx CLI and a global (machine-level) git clean filter (`dotenvx protect`) that blocks committing a plaintext `.env*` on this machine as a safety net.
 
-```sh
-export ENVSYNC_HOST=ubuntu@<server>.<tailnet>.ts.net
-source /path/to/envsync.sh
+`scripts/dotenv-env.sh render` (root only) decrypts `.env` using the private key, drops its stale `TAILSCALE_IP`/`BUTLER_ORIGIN`/`BUTLER_WEB_ORIGIN` lines, injects current host-derived values for those three, and atomically installs root-owned `/etc/personal-agent-infra.env` mode `0600`. It never prints secret values. `70-headroom` and `81-butler-dashboard` call it automatically. `scripts/dotenv-env.sh status` reports CLI/key/render state without values.
+
+To add or rotate a secret, an administrator with the encrypted `.env` checked out runs, on a trusted terminal, never in chat:
+
+```bash
+dotenvx set SOME_KEY 'the-value' -f .env
 ```
 
-Commands: `envpush [name] [file]`, `envpull [name] [file]`, `envdiff [name] [file]`, `envkeys [name]`, `envlist`, and `envcheck`. Name defaults to repo directory; file defaults to `./.env`.
+This re-encrypts in place using the public key already embedded in `.env`'s header; it does not require the private key and does not decrypt anything else in the file. Commit the updated ciphertext normally, then request an approved `scripts/dotenv-env.sh render` run on the VPS. Keep `TAILSCALE_IP`, `BUTLER_ORIGIN`, and `BUTLER_WEB_ORIGIN` out of manual edits; the renderer supplies them from live host state.
 
-VPS files live in `~/secrets/<name>.env`; `infra` maps to this repo's `.env`. `~/secrets/.history` keeps 10 prior versions per name. Restore by copying wanted history file back through `envpush`, never by exposing values in chat.
+To inspect decrypted values locally (admin only, never for agents):
 
-Changing `infra` prints restart-needed note. Ask orchestrator; do not restart services yourself.
-
-**Whenever you change a `.env`, run `envpush` (or `envpull` on other machine).**
+```bash
+dotenvx decrypt -f .env -fk /etc/dotenvx/personal-agent-infra.env.keys --stdout
+```
 
 ## Security
 
@@ -83,3 +89,5 @@ Changing `infra` prints restart-needed note. Ask orchestrator; do not restart se
 - 9router is published only on `TAILSCALE_IP`; Docker-published ports bypass UFW, so never bind `0.0.0.0`.
 - Headroom must not publish host port or Tailscale Serve rule; 9router calls `/v1/compress` without token.
 - `scripts/hermes-sudo.sh` grant and `docker` group membership are root-equivalent.
+- Butler runs only through `/home/hermes/services/butler/compose.yml`; host ports remain loopback. Backend joins `personal-agent-infra_app-network` only for 9router; frontend stays private.
+- `/var/lib/butler` is shared through named ACLs by `hermes` and `ubuntu`. Butler container runs as root only for portable bind-mount ownership; do not add `hermes` to Docker group.

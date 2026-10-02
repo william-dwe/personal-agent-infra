@@ -1,5 +1,14 @@
-# Environment variables
-.env
+# dotenvx private key material and plaintext environment variants.
+# .env itself IS committed only when dotenvx-encrypted.
+.env.keys
+.env.keys.*
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python bytecode cache
+__pycache__/
 
 # Local choice of dashboard user (see scripts/deploy.sh)
 .dashboard-user

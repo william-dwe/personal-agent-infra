@@ -1,3 +1,5 @@
+name: personal-agent-infra
+
 networks:
   app-network:
     driver: bridge

@@ -8,7 +8,6 @@ user=${1:-$(cat .dashboard-user 2>/dev/null || echo hermes)}
 id "$user" &>/dev/null || { echo "No such user: $user" >&2; exit 1; }
 sudo test -x "/home/$user/.local/bin/hermes" || { echo "Hermes not installed for $user" >&2; exit 1; }
 echo "$user" > .dashboard-user
-chmod 600 .env 2>/dev/null || true
 
 for unit in "$PWD"/systemd/*.service; do
   sudo systemctl link "$unit"       # symlink -> /etc/systemd/system/

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Butler dashboard wiki link and persistent Tailscale Serve rule. Does not start services.
+# Butler dashboard prerequisites, persistent Tailscale Serve rule, and Compose activation.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -23,7 +23,8 @@ else
 fi
 
 # Stable system paths avoid checkout paths in unit files.
-[ -r "$root/.env" ] && sudo ln -sfn "$root/.env" /etc/personal-agent-infra.env
+sudo "$root/scripts/dotenv-env.sh" render
+sudo test -f /etc/personal-agent-infra.env && ! sudo test -L /etc/personal-agent-infra.env || { echo "Rendered environment file missing." >&2; exit 1; }
 sudo install -d -m 0755 /usr/local/lib/personal-agent-infra
 sudo ln -sfn "$root/scripts/butler-review-queue.sh" /usr/local/lib/personal-agent-infra/butler-review-queue.sh
 
@@ -33,9 +34,10 @@ else
   sudo tailscale serve --bg --https=8444 http://127.0.0.1:3100
 fi
 
-cat <<EOF
-Next steps after approved cutover:
-  sudo systemctl link $root/systemd/butler-backend.service
-  sudo systemctl link $root/systemd/butler-frontend.service
-  sudo systemctl enable --now butler-backend butler-frontend
-EOF
+compose=(sudo docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file /etc/personal-agent-infra.env)
+running=$("${compose[@]}" ps --status running --services)
+if [ "$running" = $'backend\nfrontend' ]; then
+  echo "==> Butler containers: already installed, skipping"
+else
+  "$root/scripts/butler.sh" up
+fi

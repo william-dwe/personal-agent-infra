@@ -1,7 +1,7 @@
 [Unit]
 Description=Butler review queue: start librarian only when packets are waiting
-After=butler-backend.service
-Requires=butler-backend.service
+Wants=docker.service
+After=docker.service network-online.target
 
 [Service]
 Type=oneshot

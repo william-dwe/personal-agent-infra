@@ -40,4 +40,4 @@ if [ $failed -gt 0 ]; then
   echo "$failed step(s) failed. Fix and re-run; finished steps will be skipped."
   exit 1
 fi
-echo "Next: copy secrets into .env, then run: docker compose up -d && ./scripts/deploy.sh"
+echo "Next: ./scripts/deploy.sh to start Hermes dashboard and gateway. Butler, 9router, and Headroom start from completed install steps."
