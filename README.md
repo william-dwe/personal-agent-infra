@@ -63,7 +63,7 @@ Manual recovery path:
 | `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
 | `scripts/install/65-dotenvx.sh` | Install dotenvx CLI and its global git clean filter. |
 | `scripts/install/70-headroom.sh` | Render runtime environment, then reconcile Headroom and 9router containers. |
-| `scripts/install/75-services.sh` | Clone Butler and second-brain-wiki. Defaults to `/home/hermes/services/{butler,second-brain-wiki}`; override once with absolute `BUTLER_DIR` and `WIKI_DIR`. |
+| `scripts/install/75-services.sh` | Clone private Butler over SSH (`hermes` inherits your SSH key from step 50; must already have Butler repo access) and public second-brain-wiki over HTTPS. Defaults to `/home/hermes/services/{butler,second-brain-wiki}`; override once with absolute `BUTLER_DIR` and `WIKI_DIR`, or the clone URLs with `BUTLER_REPO_URL`/`WIKI_REPO_URL`. Trusts `github.com`'s SSH host key by pinning GitHub's own published fingerprint, never by blind scan-on-connect. |
 | `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
 | `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
 

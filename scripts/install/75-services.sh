@@ -4,7 +4,7 @@ set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
 paths=/etc/personal-agent-infra.paths
-butler_url=${BUTLER_REPO_URL:-https://github.com/william-dwe/butler.git}
+butler_url=${BUTLER_REPO_URL:-git@github.com:william-dwe/butler.git}
 wiki_url=${WIKI_REPO_URL:-https://github.com/william-dwe/second-brain-wiki.git}
 butler=${BUTLER_DIR:-/home/hermes/services/butler}
 wiki=${WIKI_DIR:-/home/hermes/services/second-brain-wiki}
@@ -31,6 +31,18 @@ else
   write_paths
 fi
 
+# Pinned, not scanned: GitHub's own published ed25519 host key.
+# Fingerprint SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+github_known_hosts_line='github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+trust_github_host_key() {
+  local hermes_known_hosts=/home/hermes/.ssh/known_hosts
+  sudo -u hermes grep -qF "$github_known_hosts_line" "$hermes_known_hosts" 2>/dev/null && return 0
+  echo "==> Trusting github.com SSH host key for hermes (pinned, not scanned)..."
+  sudo install -d -m 0700 -o hermes -g hermes /home/hermes/.ssh
+  printf '%s\n' "$github_known_hosts_line" | sudo -u hermes tee -a "$hermes_known_hosts" >/dev/null
+}
+
 clone() {
   local label=$1 url=$2 path=$3
   if [ -e "$path" ]; then
@@ -39,6 +51,7 @@ clone() {
   fi
   echo "==> Cloning $label..."
   sudo install -d -m 0755 -o hermes -g hermes "$(dirname "$path")"
+  [[ $url == git@* ]] && trust_github_host_key
   sudo -u hermes git clone "$url" "$path"
 }
 
