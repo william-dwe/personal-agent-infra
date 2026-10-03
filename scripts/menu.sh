@@ -77,6 +77,33 @@ dotenv_key_ready() {
   [ -f "$key" ] && [ ! -L "$key" ] && [ "$(sudo stat -c '%u:%g:%a' "$key" 2>/dev/null)" = 0:0:600 ]
 }
 
+restore_dotenv_key() {
+  local choice source user
+  choice=$(whiptail --title "$TITLE" --menu "Restore dotenvx private key" 15 76 4 \
+    1 "Show one-time authorization command for old VPS" \
+    2 "Copy directly from trusted old VPS over SSH" \
+    3 "I restored it manually; recheck" \
+    b "Cancel setup" 3>&1 1>&2 2>&3) || return 1
+  case $choice in
+    1)
+      user=$(whiptail --title "$TITLE" --inputbox "Source SSH user on old VPS, for example ubuntu:" 10 70 3>&1 1>&2 2>&3) || return 1
+      clear
+      ./scripts/dotenv-restore-ssh-key.sh authorization "$user"
+      pause
+      restore_dotenv_key
+      ;;
+    2)
+      source=$(whiptail --title "$TITLE" --inputbox \
+        "Source SSH target, for example ubuntu@old-vps.\n\nRun 'Show one-time authorization command' there first. Unknown host fingerprints require explicit terminal acceptance. Key never appears in chat, Git, argv, or logs." \
+        14 76 3>&1 1>&2 2>&3) || return 1
+      clear
+      ./scripts/dotenv-key-transfer.sh "$source"
+      ;;
+    3) ;;
+    b) return 1 ;;
+  esac
+}
+
 guided_vps_setup() {
   whiptail --title "$TITLE" --yesno \
     "New VPS setup runs package updates, Tailscale login, Docker, Hermes, dotenvx, firewall, Butler/wiki clones, and service startup.\n\nYou must securely restore dotenvx private key before services start.\n\nContinue?" \
@@ -92,11 +119,16 @@ guided_vps_setup() {
 
 
   while ! dotenv_key_ready; do
-    whiptail --title "$TITLE" --msgbox \
-      "dotenvx private key missing or invalid.\n\nSecurely restore it to:\n/etc/dotenvx/personal-agent-infra.env.keys\n\nRequired owner and mode: root:root, 0600.\n\nKey never belongs in this repository or chat." \
-      16 76
-    dotenv_key_ready && break
-    whiptail --title "$TITLE" --yesno "Key still not ready. Restore it, then choose Retry.\n\nChoose Cancel to return without starting services." 12 76 || return
+    if ! restore_dotenv_key; then
+      echo "dotenvx private key not restored; services were not started."
+      pause
+      return
+    fi
+    if ! dotenv_key_ready; then
+      whiptail --title "$TITLE" --msgbox \
+        "dotenvx private key missing or invalid.\n\nRequired path: /etc/dotenvx/personal-agent-infra.env.keys\nRequired owner and mode: root:root, 0600.\n\nTransfer failure leaves any existing destination key unchanged." \
+        14 76
+    fi
   done
 
   clear

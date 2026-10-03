@@ -73,6 +73,15 @@ Manual recovery path:
 
 `scripts/dotenv-env.sh render` (root only) decrypts `.env` using the private key, drops its stale `TAILSCALE_IP`/`BUTLER_ORIGIN`/`BUTLER_WEB_ORIGIN` lines, injects current host-derived values for those three, and atomically installs root-owned `/etc/personal-agent-infra.env` mode `0600`. It never prints secret values. `70-headroom` and `81-butler-dashboard` call it automatically. `scripts/dotenv-env.sh status` reports CLI/key/render state without values.
 
+### Restore key from old VPS
+
+Guided setup offers two steps under **Restore dotenvx private key**:
+
+1. **Show one-time authorization command for old VPS**: generates (once) a dedicated, passphrase-less SSH key at `~/.ssh/id_ed25519_dotenvx_restore` on this VPS, then prints commands to run in an authenticated console on the old VPS. Those commands append one `authorized_keys` line restricted with `restrict,command="sudo -n /usr/bin/cat /etc/dotenvx/personal-agent-infra.env.keys"` — no shell, no port/agent forwarding, no other command — and add one scoped `/etc/sudoers.d/90-dotenvx-key-restore` entry permitting only that exact `cat`. Run those commands yourself on the old VPS; this repo never automates writes to a host it doesn't already trust.
+2. **Copy directly from trusted old VPS over SSH**: enter the source target, e.g. `ubuntu@old-vps`. The dedicated key authenticates; password and keyboard-interactive auth are disabled; an unknown host fingerprint requires explicit terminal acceptance. The helper streams the key into a root-only temporary file, proves it decrypts committed infra `.env`, then atomically installs `/etc/dotenvx/personal-agent-infra.env.keys` as `root:root` mode `0600`. Failed transfer leaves any existing destination key unchanged.
+
+After a successful transfer, remove the `authorized_keys` line and `/etc/sudoers.d/90-dotenvx-key-restore` from the old VPS; the restore key never grants anything beyond reading that one file.
+
 To add or rotate a secret, an administrator with the encrypted `.env` checked out runs, on a trusted terminal, never in chat:
 
 ```bash

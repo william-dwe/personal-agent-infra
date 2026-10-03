@@ -53,7 +53,7 @@ Not tracked (see `.gitignore`): `.env.keys` (dotenvx private key material, never
 ## Env secrets
 
 - dotenvx-encrypted `.env` (committed to this repo) is source of runtime secrets. `/etc/dotenvx/personal-agent-infra.env.keys` is the one secret-bearing file: root-owned mode `0600`, lives only on the VPS, never read or copied by agents. `/etc/personal-agent-infra.env` is the root-owned rendered runtime config.
-- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `render`, `dotenvx decrypt`, `dotenvx encrypt` on the committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys`. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask William to run it himself—an agent-entered value can't be confirmed without ever appearing in chat.
+- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `dotenv-key-transfer.sh`, `dotenv-restore-ssh-key.sh`, `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys` or `~/.ssh/id_ed25519_dotenvx_restore`. Key transfer is an administrator-only guided setup action requiring a manual authorization step on the old VPS console. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask William to run it himself—an agent-entered value can't be confirmed without ever appearing in chat.
 - When changing secret keys or `.env.example`, report key names and ask William to update the encrypted `.env` manually; never ask for or print values in chat.
 ## Security-sensitive knobs
 
