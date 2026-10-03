@@ -1,0 +1,2 @@
+tailscale_login_retries: 60
+tailscale_login_delay: 5

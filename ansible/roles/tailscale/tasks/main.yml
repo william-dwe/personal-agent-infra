@@ -1,0 +1,35 @@
+- name: Install Tailscale
+  ansible.builtin.shell: curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: "{{ tailscale_binary }}"
+
+- name: Read Tailscale state
+  ansible.builtin.command: tailscale status --json
+  register: ts
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Record Tailscale login state
+  ansible.builtin.set_fact:
+    ts_running: "{{ ts.rc == 0 and (ts.stdout | from_json).BackendState == 'Running' }}"
+
+- name: Start Tailscale login
+  ansible.builtin.command: tailscale up --timeout=15s
+  register: ts_up
+  failed_when: false
+  when: not ts_running
+
+- name: Pause for Tailscale approval
+  ansible.builtin.pause:
+    prompt: "Approve this machine in Tailscale, then press Enter:\n{{ ts_up.stderr }}"
+  when: not ts_running
+
+- name: Wait for Tailscale login
+  ansible.builtin.command: tailscale status --json
+  register: ts_wait
+  until: (ts_wait.stdout | from_json).BackendState == 'Running'
+  retries: "{{ tailscale_login_retries }}"
+  delay: "{{ tailscale_login_delay }}"
+  changed_when: false
+  when: not ts_running

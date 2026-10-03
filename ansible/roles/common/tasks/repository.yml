@@ -1,0 +1,6 @@
+- name: Clone infrastructure repository
+  ansible.builtin.git:
+    repo: "{{ infra_repo_url }}"
+    dest: "{{ infra_dir }}"
+    update: false
+  become_user: "{{ admin_user }}"

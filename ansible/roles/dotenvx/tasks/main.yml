@@ -1,0 +1,45 @@
+- name: Install dotenvx
+  ansible.builtin.shell: curl -sfS https://dotenvx.sh | sh
+  args:
+    creates: "{{ dotenvx_binary }}"
+
+- name: Check dotenvx Git protection
+  ansible.builtin.command: git config --global --get filter.dotenvx.required
+  become_user: "{{ admin_user }}"
+  register: dx_filter
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Enable dotenvx Git protection
+  ansible.builtin.command: dotenvx protect
+  become_user: "{{ admin_user }}"
+  when: dx_filter.rc != 0
+
+- name: Require dotenvx private key vault variable
+  ansible.builtin.assert:
+    that: vault_dotenvx_private_key is defined
+    fail_msg: "vault_dotenvx_private_key missing: create ansible/group_vars/all/vault.yml (README Ansible section)"
+
+- name: Create dotenvx configuration directory
+  ansible.builtin.file:
+    path: /etc/dotenvx
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install dotenvx private key
+  ansible.builtin.copy:
+    content: "{{ vault_dotenvx_private_key }}"
+    dest: "{{ dotenvx_key_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "sh -c 'dotenvx decrypt -f {{ infra_dir }}/.env -fk %s --stdout >/dev/null 2>&1'"
+  no_log: true
+
+- name: Render runtime environment
+  ansible.builtin.command: "{{ infra_dir }}/scripts/dotenv-env.sh render"
+  changed_when: false
+  # ponytail: re-renders every run; content is identical unless .env or Tailscale identity changed.

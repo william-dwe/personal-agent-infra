@@ -15,7 +15,7 @@ usage() {
 [ $# -eq 1 ] || usage
 case $1 in up|restart|down|status|logs) ;; *) usage ;; esac
 [ -d "$root/.git" ] || { echo "Missing infra checkout: $root" >&2; exit 1; }
-[ -d "$butler/.git" ] && [ -d "$wiki/.git" ] || { echo "Missing configured Butler or wiki checkout." >&2; exit 1; }
+sudo test -d "$butler/.git" && sudo test -d "$wiki/.git" || { echo "Missing configured Butler or wiki checkout." >&2; exit 1; }
 sudo test -f "$env" && ! sudo test -L "$env" || { echo "Missing environment file: $env" >&2; exit 1; }
 
 compose=(sudo env "WIKI_DIR=$wiki" docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file "$env")

@@ -1,0 +1,5 @@
+- name: Install Hermes Agent
+  ansible.builtin.shell: curl -fsSL {{ hermes_installer_url }} | bash -s -- --non-interactive
+  become_user: "{{ agent_user }}"
+  args:
+    creates: "/home/{{ agent_user }}/.local/bin/hermes"

@@ -1,0 +1,18 @@
+- name: Bootstrap personal-agent infrastructure
+  hosts: all
+  become: true
+  roles:
+    - role: common
+      tags: [common]
+    - role: tailscale
+      tags: [tailscale]
+    - role: hermes
+      tags: [hermes]
+    - role: dotenvx
+      tags: [dotenvx]
+    - role: headroom
+      tags: [headroom]
+    - role: 9router
+      tags: [9router]
+    - role: butler
+      tags: [butler]

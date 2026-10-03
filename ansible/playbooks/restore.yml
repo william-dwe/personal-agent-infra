@@ -1,0 +1,58 @@
+- name: Restore personal-agent state
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Require local backup archive
+      ansible.builtin.assert:
+        that:
+          - backup_file is defined
+          - backup_file is file
+        fail_msg: "Pass -e backup_file=backups/<name>.tar.zst (path relative to ansible/)"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: Check Docker prerequisite
+      ansible.builtin.stat:
+        path: /usr/bin/docker
+      register: docker_bin
+
+    - name: Check Hermes prerequisite
+      ansible.builtin.stat:
+        path: "/home/{{ agent_user }}/.local/bin/hermes"
+      register: hermes_bin
+
+    - name: Require bootstrap prerequisites
+      ansible.builtin.assert:
+        that:
+          - docker_bin.stat.exists
+          - hermes_bin.stat.exists
+        fail_msg: "Run playbooks/site.yml on this host first"
+
+    - name: Upload state archive
+      ansible.builtin.copy:
+        src: "{{ backup_file }}"
+        dest: /var/tmp/pai-restore.tar.zst
+        mode: "0600"
+      become: false
+
+    - name: Stop and restore state
+      block:
+        - name: Stop services
+          ansible.builtin.import_tasks: tasks/stop_services.yml
+
+        - name: Remove fresh 9router data
+          ansible.builtin.file:
+            path: "{{ infra_dir }}/data/9router"
+            state: absent
+
+        - name: Extract state archive
+          ansible.builtin.command: tar --zstd --acls -xpf /var/tmp/pai-restore.tar.zst -C /
+      always:
+        - name: Resume services
+          ansible.builtin.import_tasks: tasks/start_services.yml
+        - name: Remove uploaded archive
+          ansible.builtin.file:
+            path: /var/tmp/pai-restore.tar.zst
+            state: absent

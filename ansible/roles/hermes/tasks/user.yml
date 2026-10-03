@@ -1,0 +1,29 @@
+- name: Create Hermes user
+  ansible.builtin.user:
+    name: "{{ agent_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+
+- name: Check Hermes authorized keys
+  ansible.builtin.stat:
+    path: "/home/{{ agent_user }}/.ssh/authorized_keys"
+  register: hermes_keys
+
+- name: Copy admin SSH configuration to Hermes
+  ansible.builtin.copy:
+    src: "/home/{{ admin_user }}/.ssh/"
+    dest: "/home/{{ agent_user }}/.ssh/"
+    remote_src: true
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: preserve
+  when: not hermes_keys.stat.exists or hermes_keys.stat.size == 0
+
+- name: Secure Hermes SSH directory
+  ansible.builtin.file:
+    path: "/home/{{ agent_user }}/.ssh"
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+  when: not hermes_keys.stat.exists or hermes_keys.stat.size == 0

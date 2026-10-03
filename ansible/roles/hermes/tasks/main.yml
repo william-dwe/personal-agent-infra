@@ -1,0 +1,8 @@
+- name: Configure Hermes user
+  ansible.builtin.import_tasks: user.yml
+
+- name: Install Hermes Agent
+  ansible.builtin.import_tasks: agent.yml
+
+- name: Configure Hermes services
+  ansible.builtin.import_tasks: services.yml

@@ -6,10 +6,17 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 data=/var/lib/butler
 link=$data/wiki
 mapfile -d '' -t paths < <("$root/scripts/butler-paths.sh")
+
 [ "${#paths[@]}" -eq 2 ] || { echo "Invalid Butler path configuration." >&2; exit 1; }
+
 butler=${paths[0]}
 wiki=${paths[1]}
-[ -d "$butler/.git" ] && [ -d "$wiki/.git" ] || { echo "Run install step 75-services first." >&2; exit 1; }
+
+# $butler/$wiki live under /home/hermes (0750/0770, hermes:hermes), unreadable
+# to the invoking user; a plain `[ -d ... ]` here silently returns false on
+# permission-denied, misreporting a real checkout as missing.
+sudo test -d "$butler/.git" && sudo test -d "$wiki/.git" || { echo "Run install step 75-services first." >&2; exit 1; }
+
 if [ -e "$link" ] || [ -L "$link" ]; then
   if [ -L "$link" ] && [ "$(readlink -f "$link")" = "$wiki" ]; then
     echo "==> Butler wiki link: already installed, skipping"
@@ -23,7 +30,7 @@ else
   sudo -u hermes ln -sfnT "$wiki" "$link"
 fi
 
-# Stable system paths avoid checkout paths in unit files.
+# Stable system paths avoid baking checkout paths into unit files.
 sudo "$root/scripts/dotenv-env.sh" render
 sudo test -f /etc/personal-agent-infra.env && ! sudo test -L /etc/personal-agent-infra.env || { echo "Rendered environment file missing." >&2; exit 1; }
 sudo install -d -m 0755 /usr/local/lib/personal-agent-infra

@@ -1,0 +1,63 @@
+- name: Back up personal-agent state
+  hosts: all
+  become: true
+  vars:
+    archive: "/var/tmp/pai-{{ ansible_hostname }}-{{ ansible_date_time.iso8601_basic_short }}.tar.zst"
+    backup_dir: "{{ playbook_dir | dirname }}/backups"
+    infra_rel: "{{ infra_dir | regex_replace('^/', '') }}"
+
+  tasks:
+    - name: Stop and archive state
+      block:
+        - name: Stop services
+          ansible.builtin.import_tasks: tasks/stop_services.yml
+
+        - name: Create state archive
+          ansible.builtin.command: >-
+            tar --zstd --acls -cpf {{ archive }} -C / --anchored
+            --exclude=home/{{ agent_user }}/.hermes/hermes-agent
+            --exclude=home/{{ agent_user }}/.hermes/cache
+            --exclude=home/{{ agent_user }}/.hermes/logs
+            --exclude=*.sock
+            {{ infra_rel }}/data var/lib/butler
+            home/{{ agent_user }}/.hermes home/{{ agent_user }}/.local/bin
+      always:
+        - name: Resume services
+          ansible.builtin.import_tasks: tasks/start_services.yml
+
+    - name: Restrict archive permissions
+      ansible.builtin.file:
+        path: "{{ archive }}"
+        owner: "{{ admin_user }}"
+        mode: "0600"
+
+    - name: Create local backup directory
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Fetch state archive
+      ansible.builtin.fetch:
+        src: "{{ archive }}"
+        dest: "{{ backup_dir }}/"
+        flat: true
+      become: false
+
+    - name: Restrict fetched archive permissions
+      ansible.builtin.file:
+        path: "{{ backup_dir }}/{{ archive | basename }}"
+        mode: "0600"
+      delegate_to: localhost
+      become: false
+
+    - name: Remove remote archive
+      ansible.builtin.file:
+        path: "{{ archive }}"
+        state: absent
+
+    - name: Report backup location
+      ansible.builtin.debug:
+        msg: "Backup: {{ backup_dir }}/{{ archive | basename }}"

@@ -1,0 +1,1 @@
+# Tailscale login is handled synchronously in tasks/main.yml.

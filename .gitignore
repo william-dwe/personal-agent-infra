@@ -15,6 +15,10 @@ __pycache__/
 data/
 .archive/
 
+# Ansible vault password and state backups (backups hold plaintext secrets)
+ansible/secret.txt
+ansible/backups/
+
 # OS / Editor files
 .DS_Store
 *.log

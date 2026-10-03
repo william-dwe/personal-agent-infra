@@ -1,0 +1,11 @@
+- name: Restart Hermes dashboard
+  listen: restart hermes
+  ansible.builtin.systemd_service:
+    name: "hermes-dashboard@{{ dashboard_user }}"
+    state: restarted
+
+- name: Restart Hermes gateway
+  listen: restart hermes
+  ansible.builtin.systemd_service:
+    name: "hermes-gateway@{{ dashboard_user }}"
+    state: restarted

@@ -67,9 +67,54 @@ Manual recovery path:
 | `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
 | `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
 
+## Ansible (new VPS)
+
+Ansible bootstraps the same base host as install steps 00-70 and 80 plus `deploy.sh`; bash scripts remain available. Phase 1 does not clone Butler or wiki or start Butler. After bootstrap, run `./scripts/init.sh 75-services 81-butler-dashboard` and enable `butler-review-queue.timer` manually.
+
+Install Ansible and Git on control node. Run locally from new VPS, or target it over SSH from laptop:
+
+```bash
+sudo apt-get install -y ansible git
+```
+
+Create vault on old VPS. `secret.txt` is one git-ignored line; store it in password manager. `vault.yml` is ciphertext safe to commit.
+
+```bash
+cd ansible
+(umask 077; openssl rand -base64 32 > secret.txt)
+sudo cat /etc/dotenvx/personal-agent-infra.env.keys | python3 -c 'import json,sys; print("vault_dotenvx_private_key: " + json.dumps(sys.stdin.read()))' | ansible-vault encrypt --output group_vars/all/vault.yml
+```
+
+On new VPS, clone repo, write same one-line `ansible/secret.txt` with mode `0600`, then run:
+
+```bash
+cd ansible
+ansible-playbook playbooks/site.yml
+```
+
+From laptop:
+
+```bash
+ansible-playbook -i '<host>,' -u ubuntu playbooks/site.yml
+```
+
+Add `-K` when sudo needs password. Playbook pauses for interactive Tailscale login. Use `--tags <name>` to run one bootstrap area.
+
+`ansible/inventory.yml` holds environment-specific non-secret values (`admin_user`, `agent_user`, dashboard user, checkout path, repo URL, runtime env path). Override them in another inventory for a different VPS. `playbooks/site.yml` orders roles by dependency: `common`, `tailscale`, `hermes`, `dotenvx`, `headroom`, `9router`, then `butler`. `common` owns shared OS setup and splits packages, Docker, shell, firewall, and repository tasks; other roles own platform components or applications. `backup.yml` and `restore.yml` own migration orchestration. Each role uses standard `defaults/main.yml`, `vars/main.yml`, `tasks/main.yml`, and `handlers/main.yml` layout.
+
+State migration stops Hermes, review timer, and all containers while archiving. Archives contain plaintext secrets from Hermes `.env`, librarian token, and 9router state; keep only in git-ignored `ansible/backups/`, then delete after migration.
+
+```bash
+# Old VPS
+cd ansible && ansible-playbook playbooks/backup.yml
+
+# New VPS, after site.yml
+ansible-playbook playbooks/restore.yml -e backup_file=backups/<name>.tar.zst
+```
+
 ## Secrets
 
-`.env` at repo root IS committed to this public repo, and that is intentional: it holds [dotenvx](https://dotenvx.com)-encrypted values (`KEY=encrypted:...`), not plaintext. The only secret-bearing file is the private key at `/etc/dotenvx/personal-agent-infra.env.keys`, root-owned mode `0600`, generated once on the VPS and never committed, copied off the VPS, or placed in the repo. `scripts/install/65-dotenvx.sh` installs the dotenvx CLI and a global (machine-level) git clean filter (`dotenvx protect`) that blocks committing a plaintext `.env*` on this machine as a safety net.
+`.env` at repo root IS committed to this public repo, and that is intentional: it holds [dotenvx](https://dotenvx.com)-encrypted values (`KEY=encrypted:...`), not plaintext. The only secret-bearing runtime file is private key `/etc/dotenvx/personal-agent-infra.env.keys`, root-owned mode `0600`, generated once on VPS; its only copy outside VPS is Ansible Vault ciphertext `ansible/group_vars/all/vault.yml`, decryptable only with git-ignored one-line `ansible/secret.txt`. `scripts/install/65-dotenvx.sh` installs dotenvx CLI and global (machine-level) git clean filter (`dotenvx protect`) that blocks committing plaintext `.env*` on this machine as safety net.
 
 `scripts/dotenv-env.sh render` (root only) decrypts `.env` using the private key, drops its stale `TAILSCALE_IP`/`BUTLER_ORIGIN`/`BUTLER_WEB_ORIGIN` lines, injects current host-derived values for those three, and atomically installs root-owned `/etc/personal-agent-infra.env` mode `0600`. It never prints secret values. `70-headroom` and `81-butler-dashboard` call it automatically. `scripts/dotenv-env.sh status` reports CLI/key/render state without values.
 

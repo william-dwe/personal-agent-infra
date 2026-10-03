@@ -43,10 +43,15 @@ trust_github_host_key() {
   printf '%s\n' "$github_known_hosts_line" | sudo -u hermes tee -a "$hermes_known_hosts" >/dev/null
 }
 
+# $butler and $wiki live under /home/hermes (0750/0770, hermes:hermes), unreadable
+# to the invoking (non-hermes) user. Every existence/type check below must run
+# as root or hermes; a plain `[ -e ... ]` here silently returns false on
+# permission-denied, indistinguishable from "doesn't exist" -> re-clone attempt
+# -> git refuses on the real leftover dir, even though the dir already existed.
 clone() {
   local label=$1 url=$2 path=$3
-  if [ -e "$path" ]; then
-    [ -d "$path/.git" ] || { echo "Refusing: $path exists but is not a Git checkout" >&2; return 1; }
+  if sudo test -e "$path"; then
+    sudo test -d "$path/.git" || { echo "Refusing: $path exists but is not a Git checkout" >&2; return 1; }
     return
   fi
   echo "==> Cloning $label..."
@@ -56,7 +61,7 @@ clone() {
 }
 
 command -v git >/dev/null || { echo "Git missing; install it, then re-run." >&2; exit 1; }
-if [ -d "$butler/.git" ] && [ -d "$wiki/.git" ]; then
+if sudo test -d "$butler/.git" && sudo test -d "$wiki/.git"; then
   echo "==> Services: already installed, skipping"
   exit 0
 fi

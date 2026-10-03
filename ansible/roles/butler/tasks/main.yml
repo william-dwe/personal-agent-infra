@@ -1,0 +1,22 @@
+- name: Create Butler data directory
+  ansible.builtin.file:
+    path: "{{ butler_data_dir }}"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "{{ butler_data_mode }}"
+
+- name: Set Butler data ACLs
+  ansible.posix.acl:
+    path: "{{ butler_data_dir }}"
+    etype: "{{ item.etype }}"
+    entity: "{{ item.entity }}"
+    permissions: "{{ item.permissions }}"
+    default: "{{ item.default }}"
+    state: present
+  loop:
+    - { etype: user, entity: "{{ admin_user }}", permissions: rwx, default: false }
+    - { etype: user, entity: "{{ agent_user }}", permissions: rwx, default: true }
+    - { etype: user, entity: "{{ admin_user }}", permissions: rwx, default: true }
+    - { etype: group, entity: "", permissions: "---", default: true }
+    - { etype: other, entity: "", permissions: "---", default: true }

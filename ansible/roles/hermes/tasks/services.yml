@@ -1,0 +1,43 @@
+- name: Check Hermes dashboard binary
+  ansible.builtin.stat:
+    path: "/home/{{ dashboard_user }}/.local/bin/hermes"
+  register: hermes_bin
+
+- name: Require Hermes dashboard binary
+  ansible.builtin.assert:
+    that: hermes_bin.stat.exists
+    fail_msg: "Hermes not installed for {{ dashboard_user }}"
+
+- name: Link Hermes unit templates
+  ansible.builtin.file:
+    src: "{{ infra_dir }}/systemd/{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    state: link
+  loop: "{{ hermes_unit_templates }}"
+  notify: restart hermes
+
+- name: Record dashboard user
+  ansible.builtin.copy:
+    content: "{{ dashboard_user }}\n"
+    dest: "{{ infra_dir }}/.dashboard-user"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+  notify: restart hermes
+
+- name: Stop dashboards for other users
+  ansible.builtin.systemd_service:
+    name: "hermes-dashboard@{{ item }}"
+    enabled: false
+    state: stopped
+    daemon_reload: true
+  loop: "{{ [admin_user, agent_user] | difference([dashboard_user]) }}"
+
+- name: Enable Hermes dashboard and gateway
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - "hermes-dashboard@{{ dashboard_user }}"
+    - "hermes-gateway@{{ dashboard_user }}"

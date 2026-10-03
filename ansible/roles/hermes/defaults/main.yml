@@ -1,0 +1,4 @@
+admin_user: ubuntu
+agent_user: hermes
+dashboard_user: hermes
+infra_dir: "/home/{{ admin_user }}/services/personal-agent-infra"

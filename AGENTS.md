@@ -1,6 +1,6 @@
 # AGENTS.md: personal-agent-infra
 
-Shared VPS infrastructure for William's personal agent team: Hermes Agent dashboard,
+Shared VPS infrastructure for a personal agent team: Hermes Agent dashboard,
 Butler orchestrator, 9router LLM router, and Headroom compression sidecar. This repo holds infra only:
 no wiki notes or Butler application code.
 
@@ -8,12 +8,12 @@ no wiki notes or Butler application code.
 
 | Path | Owner | Who writes it |
 |---|---|---|
-| This infra checkout | Script-derived root | `ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for William to run as `ubuntu`. |
-| Butler and wiki checkouts | `BUTLER_DIR` and `WIKI_DIR` in `/etc/personal-agent-infra.paths` | `hermes`; wiki only librarian writes after William approves. |
+| This infra checkout | Script-derived root | `ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for the administrator to run as `ubuntu`. |
+| Butler and wiki checkouts | `BUTLER_DIR` and `WIKI_DIR` in `/etc/personal-agent-infra.paths` | `hermes`; wiki only librarian writes after the administrator approves. |
 | `/home/ubuntu/services/second-brain-service` | `ubuntu` | Legacy checkout. Retire it after migration; don't add features to it. |
 
 - Before editing any `services/...` path, check its absolute path and owner. Similar-looking copies have been edited by mistake before.
-- Remote `origin` is the PUBLIC repo github.com/william-dwe/personal-agent-infra. Push only with William's approval. `.env` IS committed (dotenvx-encrypted, see README Secrets); never commit `data/`, real IPs, tokens, or a plaintext `.env`/`.env.keys` (the global `dotenvx protect` git filter blocks this as a safety net).
+- Remote `origin` is the PUBLIC repo github.com/william-dwe/personal-agent-infra. Push only with the administrator's approval. `.env` IS committed (dotenvx-encrypted, see README Secrets); never commit `data/`, real IPs, tokens, or a plaintext `.env`/`.env.keys` (the global `dotenvx protect` git filter blocks this as a safety net).
 - Don't change global Git config. Set the commit identity per command, e.g. `git -c user.name=Ubuntu -c user.email=ubuntu@localhost.localdomain commit`.
 
 ## What runs here
@@ -35,6 +35,7 @@ no wiki notes or Butler application code.
 ```text
 docker-compose.yml             9router + headroom core project
 systemd/                       hermes-dashboard@.service template (EnvironmentFile = /etc/personal-agent-infra.env)
+ansible/                       inventory.yml stores environment vars; playbooks/ owns bootstrap and migration flows; roles/ are app-oriented: common, tailscale, dotenvx, hermes, 9router, headroom, butler
 scripts/init.sh                runs scripts/install/NN-*.sh in order; finished steps print "skipping"
 scripts/install/NN-*.sh        idempotent bootstrap steps: system, docker, tailscale, zsh, firewall,
                                hermes user, hermes agent, dotenvx CLI, headroom, Butler checkouts/data/dashboard activation
@@ -48,25 +49,30 @@ scripts/check-headroom.sh      read-only smoke test for 9router -> headroom
 
 Not tracked (see `.gitignore`): `.env.keys` (dotenvx private key material, never generated here—lives root-only on the VPS), `.dashboard-user`, `data/` (9router DB), `.archive/`. `.env` itself IS tracked, dotenvx-encrypted.
 
+VPS migration (backup old VPS -> `site.yml` on new VPS -> restore): see README.md "Ansible (new VPS)".
+
 `75-services.sh` writes root-owned `/etc/personal-agent-infra.paths` mode `0644`: exactly absolute `BUTLER_DIR` and `WIKI_DIR`. Set both only before its first run; changing live locations requires an approved Butler stop, path-file update, and start.
 
 ## Env secrets
 
-- dotenvx-encrypted `.env` (committed to this repo) is source of runtime secrets. `/etc/dotenvx/personal-agent-infra.env.keys` is the one secret-bearing file: root-owned mode `0600`, lives only on the VPS, never read or copied by agents. `/etc/personal-agent-infra.env` is the root-owned rendered runtime config.
-- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `dotenv-key-transfer.sh`, `dotenv-restore-ssh-key.sh`, `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys` or `~/.ssh/id_ed25519_dotenvx_restore`. Key transfer is an administrator-only guided setup action requiring a manual authorization step on the old VPS console. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask William to run it himself—an agent-entered value can't be confirmed without ever appearing in chat.
-- When changing secret keys or `.env.example`, report key names and ask William to update the encrypted `.env` manually; never ask for or print values in chat.
+- dotenvx-encrypted `.env` (committed to this repo) is source of runtime secrets. `/etc/dotenvx/personal-agent-infra.env.keys` is root-owned mode `0600`; only Ansible Vault ciphertext `ansible/group_vars/all/vault.yml` stores it outside VPS. Agents never read either key material. `/etc/personal-agent-infra.env` is root-owned rendered runtime config.
+- Agents never read `ansible/secret.txt`, never run `ansible-vault view|decrypt|edit|encrypt`, and never run `playbooks/site.yml`/`playbooks/backup.yml`/`playbooks/restore.yml` without `--check` unless the administrator approves; `backup.yml` stops services.
+- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `dotenv-key-transfer.sh`, `dotenv-restore-ssh-key.sh`, `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys` or `~/.ssh/id_ed25519_dotenvx_restore`. Key transfer is an administrator-only guided setup action requiring a manual authorization step on the old VPS console. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask the administrator to run it themself—an agent-entered value can't be confirmed without ever appearing in chat.
+- When changing secret keys or `.env.example`, report key names and ask the administrator to update the encrypted `.env` manually; never ask for or print values in chat.
+
 ## Security-sensitive knobs
 
 - `scripts/hermes-sudo.sh on` writes `/etc/sudoers.d/90-hermes-agent`, which gives `hermes` passwordless root. `off` removes only that file.
 - Membership in the `docker` group is also root-equivalent, so `hermes` in `docker` means `hermes` is effectively root.
 - Mention either one whenever a change touches `hermes` permissions.
-- `/var/lib/butler` (`scripts/install/80-butler-data.sh`) is read-write for exactly `hermes` and `ubuntu` via ACLs, no one else. It holds William's task DB and attachments.
+- `/var/lib/butler` (`scripts/install/80-butler-data.sh`) is read-write for exactly `hermes` and `ubuntu` via ACLs, no one else. It holds the administrator's task DB and attachments.
 - Butler runs from Compose with a root backend only because host `hermes` UID is not portable into images. Backend has a read-write `/var/lib/butler` mount and read-only wiki mount; host CLI remains `hermes`. Do not add `hermes` to Docker group.
 
 ## Working here
 
+- Before proposing Ansible changes, run `cd ansible && ansible-playbook playbooks/site.yml playbooks/backup.yml playbooks/restore.yml --syntax-check`.
 - Before proposing a change, run `bash -n scripts/*.sh scripts/install/*.sh`, relevant Python tests, `scripts/dotenv-env.sh status`, and `systemd-analyze verify systemd/*.service`. Agents never run `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on the committed `.env`, or `docker compose` against live services.
 - Install steps must stay idempotent. Print `==> <Name>: already installed, skipping` when there's nothing to do; `init.sh` detects skipped steps from that line.
 - Keep scripts short and use Bash and core utilities only. Mark deliberate shortcuts with a `# ponytail:` comment that names the limit.
 - If `docker` shows "unknown" or permission denied right after `usermod -aG docker`, the session has stale groups, often from a shared SSH ControlMaster connection. Run `exec sudo -iu ubuntu` rather than reconnecting.
-- The following restart live services, so ask William before running them: `deploy.sh`, `systemctl restart`, `scripts/butler.sh up`, or `scripts/butler.sh down`.
+- The following restart live services, so ask the administrator before running them: `deploy.sh`, `systemctl restart`, `scripts/butler.sh up`, or `scripts/butler.sh down`.

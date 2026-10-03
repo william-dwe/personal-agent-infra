@@ -1,0 +1,15 @@
+# Local run on VPS. Remote: ansible-playbook -i '<host>,' -u ubuntu <playbook>
+all:
+  vars:
+    admin_user: ubuntu
+    agent_user: hermes
+    dashboard_user: hermes
+    infra_repo_url: https://github.com/william-dwe/personal-agent-infra.git
+    infra_dir: "/home/{{ admin_user }}/services/personal-agent-infra"
+    runtime_env: /etc/personal-agent-infra.env
+    dotenvx_key_path: /etc/dotenvx/personal-agent-infra.env.keys
+  children:
+    vps:
+      hosts:
+        localhost:
+          ansible_connection: local

@@ -1,0 +1,13 @@
+- name: Install Oh My Zsh
+  ansible.builtin.shell: sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  become_user: "{{ admin_user }}"
+  environment:
+    RUNZSH: "no"
+    CHSH: "no"
+  args:
+    creates: "/home/{{ admin_user }}/.oh-my-zsh"
+
+- name: Set admin shell to Zsh
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    shell: /bin/zsh

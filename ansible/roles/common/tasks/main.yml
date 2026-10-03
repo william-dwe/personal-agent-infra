@@ -1,0 +1,19 @@
+- name: Configure packages
+  ansible.builtin.import_tasks: packages.yml
+  tags: [common, packages]
+
+- name: Configure Docker
+  ansible.builtin.import_tasks: docker.yml
+  tags: [common, docker]
+
+- name: Configure shell
+  ansible.builtin.import_tasks: shell.yml
+  tags: [common, shell]
+
+- name: Configure firewall
+  ansible.builtin.import_tasks: firewall.yml
+  tags: [common, firewall]
+
+- name: Configure infrastructure checkout
+  ansible.builtin.import_tasks: repository.yml
+  tags: [common, repository]

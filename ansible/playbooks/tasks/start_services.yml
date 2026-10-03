@@ -1,0 +1,11 @@
+- name: Start stopped containers
+  ansible.builtin.command: "docker start {{ stopped_containers | default([]) | join(' ') }}"
+  when: stopped_containers | default([]) | length > 0
+
+- name: Record services to restart
+  ansible.builtin.set_fact:
+    services_to_restart: "{{ stopped_units | default([]) | reject('equalto', 'butler-review-queue.service') | list }}"
+
+- name: Start stopped services
+  ansible.builtin.command: "systemctl start {{ services_to_restart | join(' ') }}"
+  when: services_to_restart | length > 0

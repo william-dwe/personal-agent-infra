@@ -1,0 +1,8 @@
+common_base_packages:
+  - git
+  - curl
+  - ca-certificates
+  - acl
+  - zsh
+  - ufw
+  - zstd
