@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# VPS control panel (whiptail TUI): install steps, dashboard user, logs.
+# VPS control panel (whiptail TUI): guided new-VPS setup, install steps, dashboard user, logs.
 # Usage: ./scripts/menu.sh
 [ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
 set -uo pipefail
 cd "$(dirname "$0")/.."
-command -v whiptail &>/dev/null || { echo "whiptail missing: sudo apt-get install -y whiptail" >&2; exit 1; }
+if ! command -v whiptail &>/dev/null; then
+  echo "Installing whiptail for VPS setup..."
+  sudo apt-get update && sudo apt-get install -y whiptail || { echo "whiptail install failed." >&2; exit 1; }
+fi
 
 TITLE="VPS control panel"
 pause() { read -rp $'\nPress Enter to return to the menu...' _; }
@@ -69,6 +72,50 @@ switch_user() {
   clear; ./scripts/deploy.sh "$user"; pause
 }
 
+dotenv_key_ready() {
+  local key=/etc/dotenvx/personal-agent-infra.env.keys
+  [ -f "$key" ] && [ ! -L "$key" ] && [ "$(sudo stat -c '%u:%g:%a' "$key" 2>/dev/null)" = 0:0:600 ]
+}
+
+guided_vps_setup() {
+  whiptail --title "$TITLE" --yesno \
+    "New VPS setup runs package updates, Tailscale login, Docker, Hermes, dotenvx, firewall, Butler/wiki clones, and service startup.\n\nYou must securely restore dotenvx private key before services start.\n\nContinue?" \
+    16 76 || return
+
+  clear
+  if ! ./scripts/init.sh 00-system 10-docker 20-tailscale 30-zsh 40-firewall 50-hermes-user 60-hermes-agent 65-dotenvx; then
+    echo "Bootstrap prerequisites failed. Fix failed step, then run guided setup again."
+    pause
+    return
+  fi
+  sudo install -d -m 0700 /etc/dotenvx
+
+
+  while ! dotenv_key_ready; do
+    whiptail --title "$TITLE" --msgbox \
+      "dotenvx private key missing or invalid.\n\nSecurely restore it to:\n/etc/dotenvx/personal-agent-infra.env.keys\n\nRequired owner and mode: root:root, 0600.\n\nKey never belongs in this repository or chat." \
+      16 76
+    dotenv_key_ready && break
+    whiptail --title "$TITLE" --yesno "Key still not ready. Restore it, then choose Retry.\n\nChoose Cancel to return without starting services." 12 76 || return
+  done
+
+  clear
+  if ! ./scripts/init.sh; then
+    echo "Full bootstrap failed. Fix failed step, then re-run guided setup; finished steps skip."
+    pause
+    return
+  fi
+
+  local user; user=$(pick_user) || return
+  whiptail --title "$TITLE" --yesno \
+    "Start Hermes dashboard and gateway as '$user'?\n\nThis restarts dashboard service and disconnects open dashboard sessions." \
+    12 76 || return
+  clear
+  ./scripts/deploy.sh "$user" || { pause; return; }
+  sudo ./scripts/check-headroom.sh
+  pause
+}
+
 pick_steps() {
   local args=() f desc
   for f in scripts/install/[0-9][0-9]-*.sh; do
@@ -100,28 +147,51 @@ toggle_hermes_sudo() {
   clear; sudo ./scripts/hermes-sudo.sh "$action"; pause
 }
 
+dashboard_menu() {
+  local choice
+  choice=$(whiptail --title "$TITLE" --menu "Dashboard controls" 14 64 3 \
+    1 "Switch dashboard user" \
+    2 "Restart dashboard" \
+    3 "Follow dashboard logs" \
+    b "Back" 3>&1 1>&2 2>&3) || return
+  local user; user=$(cat .dashboard-user 2>/dev/null || echo hermes)
+  case $choice in
+    1) switch_user ;;
+    2) clear; sudo systemctl restart "hermes-dashboard@$user" && echo restarted; pause ;;
+    3) clear; journalctl -u "hermes-dashboard@$user" -n 50 -f; pause ;;
+  esac
+}
+
+install_menu() {
+  local choice
+  choice=$(whiptail --title "$TITLE" --menu "Install and repair" 12 64 2 \
+    1 "Run selected install steps" \
+    2 "Run all install steps" \
+    b "Back" 3>&1 1>&2 2>&3) || return
+  case $choice in
+    1) run_install ;;
+    2) clear; ./scripts/init.sh; pause ;;
+  esac
+}
+
 while true; do
   status=$(status_text)
   # ponytail: capped at terminal height; on very short terminals the header gets clipped.
-  h=$(( $(wc -l <<<"$status") + 15 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
-  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 8 \
-    1 "Status (systemctl)" \
-    2 "Switch dashboard user (hermes / ubuntu)" \
-    3 "Restart dashboard" \
-    4 "Follow dashboard logs (Ctrl-C to return)" \
-    5 "Run install steps (pick)" \
-    6 "Run full init (all steps)" \
-    7 "Grant / revoke hermes passwordless sudo" \
+  h=$(( $(wc -l <<<"$status") + 12 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
+  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 6 \
+    1 "Status" \
+    2 "Set up new VPS" \
+    3 "Dashboard controls" \
+    4 "Install or repair" \
+    5 "Hermes sudo access" \
     q "Quit" 3>&1 1>&2 2>&3) || break
   user=$(cat .dashboard-user 2>/dev/null || echo hermes)
   case $choice in
     1) clear; systemctl --no-pager status "hermes-dashboard@$user"; pause ;;
-    2) switch_user ;;
-    3) clear; sudo systemctl restart "hermes-dashboard@$user" && echo restarted; pause ;;
-    4) clear; journalctl -u "hermes-dashboard@$user" -n 50 -f; pause ;;
-    5) run_install ;;
-    6) clear; ./scripts/init.sh; pause ;;
-    7) toggle_hermes_sudo ;;
+    2) guided_vps_setup ;;
+    3) dashboard_menu ;;
+    4) install_menu ;;
+    5) toggle_hermes_sudo ;;
     q) break ;;
   esac
 done
