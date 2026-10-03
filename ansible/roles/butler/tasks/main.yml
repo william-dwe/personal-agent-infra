@@ -5,6 +5,7 @@
     owner: "{{ agent_user }}"
     group: "{{ agent_user }}"
     mode: "{{ butler_data_mode }}"
+  tags: [butler, butler-deploy]
 
 - name: Set Butler data ACLs
   ansible.posix.acl:
@@ -20,3 +21,249 @@
     - { etype: user, entity: "{{ admin_user }}", permissions: rwx, default: true }
     - { etype: group, entity: "", permissions: "---", default: true }
     - { etype: other, entity: "", permissions: "---", default: true }
+  tags: [butler, butler-deploy]
+
+- name: Grant Butler backend data access
+  ansible.posix.acl:
+    path: "{{ butler_data_dir }}"
+    etype: user
+    entity: root
+    permissions: rwx
+    recursive: true
+    state: present
+  tags: [butler-deploy]
+
+- name: Create Butler checkout parents
+  ansible.builtin.file:
+    path: "{{ item | dirname }}"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0755"
+  loop:
+    - "{{ butler_dir }}"
+    - "{{ wiki_dir }}"
+  tags: [butler-deploy]
+
+- name: Create Butler SSH directory
+  ansible.builtin.file:
+    path: "/home/{{ agent_user }}/.ssh"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+  tags: [butler-deploy]
+
+- name: Trust GitHub SSH host key for Butler
+  ansible.builtin.known_hosts:
+    path: "/home/{{ agent_user }}/.ssh/known_hosts"
+    name: github.com
+    key: "{{ butler_github_known_host }}"
+    state: present
+  become_user: "{{ agent_user }}"
+  tags: [butler-deploy]
+
+- name: Check out Butler deployment ref
+  ansible.builtin.git:
+    repo: "{{ butler_repo_url }}"
+    dest: "{{ butler_dir }}"
+    version: "{{ butler_deploy_ref }}"
+    update: true
+  become_user: "{{ agent_user }}"
+  register: butler_checkout
+  tags: [butler-deploy]
+
+- name: Check out Butler wiki
+  ansible.builtin.git:
+    repo: "{{ wiki_repo_url }}"
+    dest: "{{ wiki_dir }}"
+    update: true
+  become_user: "{{ agent_user }}"
+  tags: [butler-deploy]
+
+- name: Write Butler checkout paths
+  ansible.builtin.copy:
+    content: "BUTLER_DIR={{ butler_dir }}\nWIKI_DIR={{ wiki_dir }}\n"
+    dest: "{{ butler_paths_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [butler-deploy]
+
+- name: Check Butler wiki link
+  ansible.builtin.stat:
+    path: "{{ butler_data_dir }}/wiki"
+  register: butler_wiki_link
+  tags: [butler-deploy]
+
+- name: Reject non-link Butler wiki path
+  ansible.builtin.assert:
+    that: not butler_wiki_link.stat.exists or butler_wiki_link.stat.islnk
+    fail_msg: "{{ butler_data_dir }}/wiki exists and is not a symlink"
+  tags: [butler-deploy]
+
+- name: Link Butler wiki checkout
+  ansible.builtin.file:
+    src: "{{ wiki_dir }}"
+    dest: "{{ butler_data_dir }}/wiki"
+    state: link
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    force: true
+  tags: [butler-deploy]
+
+- name: Render Butler runtime environment
+  ansible.builtin.command: "{{ infra_dir }}/scripts/dotenv-env.sh render"
+  changed_when: false
+  tags: [butler-deploy]
+
+- name: Validate Butler runtime environment
+  ansible.builtin.stat:
+    path: "{{ butler_runtime_env }}"
+  register: butler_runtime_env_file
+  tags: [butler-deploy]
+
+- name: Require regular Butler runtime environment
+  ansible.builtin.assert:
+    that:
+      - butler_runtime_env_file.stat.exists
+      - not butler_runtime_env_file.stat.islnk
+  tags: [butler-deploy]
+
+- name: Install Butler review queue helper
+  ansible.builtin.file:
+    path: "{{ butler_review_helper_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [butler-deploy]
+
+- name: Link Butler review queue helper
+  ansible.builtin.file:
+    src: "{{ infra_dir }}/scripts/butler-review-queue.sh"
+    dest: "{{ butler_review_helper }}"
+    state: link
+    owner: root
+    group: root
+    force: true
+  tags: [butler-deploy]
+
+- name: Read Butler Tailscale Serve configuration
+  ansible.builtin.command: tailscale serve status
+  register: butler_serve_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: [butler-deploy]
+
+- name: Configure Butler Tailscale Serve
+  ansible.builtin.command: "tailscale serve --bg --https={{ butler_serve_port }} {{ butler_serve_target }}"
+  when: >-
+    butler_serve_status.rc != 0 or
+    (':' ~ (butler_serve_port | string)) not in butler_serve_status.stdout or
+    butler_serve_target not in butler_serve_status.stdout
+  tags: [butler-deploy]
+
+- name: Remove legacy Butler systemd units
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/butler-backend.service
+    - /etc/systemd/system/butler-frontend.service
+    - /etc/systemd/system/multi-user.target.wants/butler-backend.service
+    - /etc/systemd/system/multi-user.target.wants/butler-frontend.service
+    - /etc/systemd/system/butler-backend.service.d/9router.conf
+  register: butler_legacy_units
+  tags: [butler-deploy]
+
+- name: Remove empty Butler legacy unit directory
+  ansible.builtin.command: rmdir /etc/systemd/system/butler-backend.service.d
+  when: butler_legacy_units.changed
+  changed_when: false
+  failed_when: false
+  tags: [butler-deploy]
+
+- name: Reload systemd after legacy Butler removal
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: butler_legacy_units.changed
+  tags: [butler-deploy]
+
+- name: Validate Butler Compose configuration
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ butler_dir }}"
+      - -f
+      - "{{ butler_dir }}/compose.yml"
+      - --env-file
+      - "{{ butler_runtime_env }}"
+      - config
+      - --quiet
+  environment:
+    WIKI_DIR: "{{ wiki_dir }}"
+  changed_when: false
+  tags: [butler-deploy]
+
+- name: Build Butler images
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ butler_dir }}"
+      - -f
+      - "{{ butler_dir }}/compose.yml"
+      - --env-file
+      - "{{ butler_runtime_env }}"
+      - build
+  environment:
+    WIKI_DIR: "{{ wiki_dir }}"
+  changed_when: false
+  tags: [butler-deploy]
+
+- name: Export Butler CLI from backend image
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      compose=(docker compose --project-directory {{ butler_dir | quote }} -f {{ (butler_dir ~ '/compose.yml') | quote }} --env-file {{ butler_runtime_env | quote }})
+      tmp=$(mktemp /usr/local/bin/.butler.XXXXXX)
+      cleanup() {
+        rm -f "$tmp"
+        "${compose[@]}" rm -f backend >/dev/null || true
+      }
+      trap cleanup EXIT
+      WIKI_DIR={{ wiki_dir | quote }} "${compose[@]}" create backend
+      container=$(WIKI_DIR={{ wiki_dir | quote }} "${compose[@]}" ps --all --quiet backend)
+      [ -n "$container" ]
+      docker cp "$container:/usr/local/bin/butler" "$tmp"
+      chown root:root "$tmp"
+      chmod 0755 "$tmp"
+      mv -f "$tmp" /usr/local/bin/butler
+      tmp=
+    executable: /bin/bash
+  changed_when: false
+  tags: [butler-deploy]
+
+- name: Start Butler Compose services
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - --project-directory
+      - "{{ butler_dir }}"
+      - -f
+      - "{{ butler_dir }}/compose.yml"
+      - --env-file
+      - "{{ butler_runtime_env }}"
+      - up
+      - -d
+      - --wait
+  environment:
+    WIKI_DIR: "{{ wiki_dir }}"
+  changed_when: false
+  tags: [butler-deploy]

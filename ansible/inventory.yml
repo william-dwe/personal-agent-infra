@@ -8,6 +8,11 @@ all:
     infra_dir: "/home/{{ admin_user }}/services/personal-agent-infra"
     runtime_env: /etc/personal-agent-infra.env
     dotenvx_key_path: /etc/dotenvx/personal-agent-infra.env.keys
+    butler_repo_url: git@github.com:william-dwe/butler.git
+    butler_dir: "/home/{{ agent_user }}/services/butler"
+    butler_deploy_ref: main
+    wiki_repo_url: https://github.com/william-dwe/second-brain-wiki.git
+    wiki_dir: "/home/{{ agent_user }}/services/second-brain-wiki"
   children:
     vps:
       hosts:

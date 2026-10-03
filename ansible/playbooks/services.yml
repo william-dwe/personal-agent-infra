@@ -1,0 +1,11 @@
+- name: Start personal-agent services
+  hosts: all
+  become: true
+  roles:
+    - role: headroom
+      tags: [headroom]
+    - role: 9router
+      tags: [9router]
+    - role: butler
+      tags: [butler-deploy]
+      when: "'butler-deploy' in ansible_run_tags"

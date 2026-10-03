@@ -6,11 +6,11 @@ no wiki notes or Butler application code.
 
 ## Ownership and boundaries
 
-| Path | Owner | Who writes it |
+|Path|Owner|Who writes it|
 |---|---|---|
-| This infra checkout | Script-derived root | `ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for the administrator to run as `ubuntu`. |
-| Butler and wiki checkouts | `BUTLER_DIR` and `WIKI_DIR` in `/etc/personal-agent-infra.paths` | `hermes`; wiki only librarian writes after the administrator approves. |
-| `/home/ubuntu/services/second-brain-service` | `ubuntu` | Legacy checkout. Retire it after migration; don't add features to it. |
+|This infra checkout|Script-derived root|`ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for the administrator to run as `ubuntu`.|
+|Butler and wiki checkouts|`BUTLER_DIR` and `WIKI_DIR` in `/etc/personal-agent-infra.paths`|`hermes`; wiki only librarian writes after the administrator approves.|
+|`/home/ubuntu/services/second-brain-service`|`ubuntu`|Legacy checkout. Retire it after migration; don't add features to it.|
 
 - Before editing any `services/...` path, check its absolute path and owner. Similar-looking copies have been edited by mistake before.
 - Remote `origin` is the PUBLIC repo github.com/william-dwe/personal-agent-infra. Push only with the administrator's approval. `.env` IS committed (dotenvx-encrypted, see README Secrets); never commit `data/`, real IPs, tokens, or a plaintext `.env`/`.env.keys` (the global `dotenvx protect` git filter blocks this as a safety net).
@@ -18,16 +18,16 @@ no wiki notes or Butler application code.
 
 ## What runs here
 
-| Component | Defined in | Runs as | Reach it at |
+|Component|Defined in|Runs as|Reach it at|
 |---|---|---|---|
-| Hermes dashboard (web + TUI) | `systemd/hermes-dashboard@.service` | `hermes-dashboard@<user>` (`hermes` or `ubuntu`, stored in `.dashboard-user`) | `http://<tailscale-ip>:9119` |
-| Butler dashboard + API | configured `BUTLER_DIR/compose.yml` project `butler` | containers; backend joins core network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` -> `127.0.0.1:8765` |
-| 9router (LLM router) | `docker-compose.yml` | container `9router` | `http://<tailscale-ip>:20128` |
-| Headroom (prompt compression) | `docker-compose.yml` | container `headroom` | `http://headroom:8787`, Docker network only |
+|Hermes dashboard (web + TUI)|`systemd/hermes-dashboard@.service`|`hermes-dashboard@<user>` (`hermes` or `ubuntu`, stored in `.dashboard-user`)|`http://<tailscale-ip>:9119`|
+|Butler dashboard + API|configured `BUTLER_DIR/compose.yml` project `butler`|containers; backend joins core network only for 9router|Tailscale HTTPS `:8444` -> host loopback `:3100` -> `127.0.0.1:8765`|
+|9router (LLM router)|`docker-compose.yml`|container `9router`|`http://<tailscale-ip>:20128`|
+|Headroom (prompt compression)|`docker-compose.yml`|container `headroom`|`http://headroom:8787`, Docker network only|
 
 - Only one user can run the dashboard, because only one process can listen on `:9119`. `scripts/deploy.sh <user>` links the unit, stops the others, and restarts the dashboard, which drops open browser and agent sessions.
 - 9router calls Headroom's `/v1/compress` without a token. For that reason Headroom must not publish a host port or a Tailscale Serve rule. `scripts/check-headroom.sh` checks this.
-- The network is locked down by UFW (`scripts/install/40-firewall.sh`): incoming traffic is denied by default, except `tailscale0` and port 22. The dashboard runs with `--insecure` on `0.0.0.0` and depends on this firewall.
+- The network is locked down by UFW (role `common`, `tasks/firewall.yml`): incoming traffic is denied by default, except `tailscale0` and port 22. The dashboard runs with `--insecure` on `0.0.0.0` and depends on this firewall.
 - 9router is published only on the Tailscale IP (`TAILSCALE_IP` rendered into `/etc/personal-agent-infra.env`; get it with `tailscale ip -4`). Never publish on `0.0.0.0`, because Docker-published ports bypass UFW.
 
 ## Layout
@@ -35,29 +35,26 @@ no wiki notes or Butler application code.
 ```text
 docker-compose.yml             9router + headroom core project
 systemd/                       hermes-dashboard@.service template (EnvironmentFile = /etc/personal-agent-infra.env)
-ansible/                       inventory.yml stores environment vars; playbooks/ owns bootstrap and migration flows; roles/ are app-oriented: common, tailscale, dotenvx, hermes, 9router, headroom, butler
-scripts/init.sh                runs scripts/install/NN-*.sh in order; finished steps print "skipping"
-scripts/install/NN-*.sh        idempotent bootstrap steps: system, docker, tailscale, zsh, firewall,
-                               hermes user, hermes agent, dotenvx CLI, headroom, Butler checkouts/data/dashboard activation
-scripts/butler.sh              scoped Butler Compose up/restart/down/status/logs; reads `/etc/personal-agent-infra.paths`, exports `/usr/local/bin/butler`
+ansible/                       inventory.yml stores environment vars; playbooks/init.yml initializes host; playbooks/services.yml deploys core services and Butler; backup.yml/restore.yml own migration
+scripts/butler.sh              scoped Butler Compose restart/down/status/logs; reads `/etc/personal-agent-infra.paths`
 scripts/deploy.sh [user]       link unit + switch dashboard user
-scripts/menu.sh                whiptail control panel (status, deploy, logs, install, hermes sudo)
+scripts/menu.sh                whiptail ops panel (status, dashboard controls, hermes sudo)
 scripts/hermes-sudo.sh         sudo ./scripts/hermes-sudo.sh on|off|status
 scripts/check-headroom.sh      read-only smoke test for 9router -> headroom
+scripts/dotenv-env.sh          render|status for /etc/personal-agent-infra.env
 ```
-
 
 Not tracked (see `.gitignore`): `.env.keys` (dotenvx private key material, never generated here—lives root-only on the VPS), `.dashboard-user`, `data/` (9router DB), `.archive/`. `.env` itself IS tracked, dotenvx-encrypted.
 
-VPS migration (backup old VPS -> `site.yml` on new VPS -> restore): see README.md "Ansible (new VPS)".
+VPS migration (backup old VPS -> `init.yml` on new VPS -> `services.yml` -> restore): see README.md "Migration (existing VPS)".
 
-`75-services.sh` writes root-owned `/etc/personal-agent-infra.paths` mode `0644`: exactly absolute `BUTLER_DIR` and `WIKI_DIR`. Set both only before its first run; changing live locations requires an approved Butler stop, path-file update, and start.
+Butler role writes root-owned `/etc/personal-agent-infra.paths` mode `0644`: exactly absolute `BUTLER_DIR` and `WIKI_DIR` from inventory. Changing live locations requires an approved Butler stop, inventory update, and deploy.
 
 ## Env secrets
 
 - dotenvx-encrypted `.env` (committed to this repo) is source of runtime secrets. `/etc/dotenvx/personal-agent-infra.env.keys` is root-owned mode `0600`; only Ansible Vault ciphertext `ansible/group_vars/all/vault.yml` stores it outside VPS. Agents never read either key material. `/etc/personal-agent-infra.env` is root-owned rendered runtime config.
-- Agents never read `ansible/secret.txt`, never run `ansible-vault view|decrypt|edit|encrypt`, and never run `playbooks/site.yml`/`playbooks/backup.yml`/`playbooks/restore.yml` without `--check` unless the administrator approves; `backup.yml` stops services.
-- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `dotenv-key-transfer.sh`, `dotenv-restore-ssh-key.sh`, `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys` or `~/.ssh/id_ed25519_dotenvx_restore`. Key transfer is an administrator-only guided setup action requiring a manual authorization step on the old VPS console. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask the administrator to run it themself—an agent-entered value can't be confirmed without ever appearing in chat.
+- Agents never read `ansible/secret.txt`, never run `ansible-vault view|decrypt|edit|encrypt`, and never run `playbooks/init.yml`/`playbooks/services.yml`/`playbooks/backup.yml`/`playbooks/restore.yml` without `--check` unless the administrator approves; `backup.yml` stops services.
+- Agents may run `scripts/dotenv-env.sh status` only. Agents never run `scripts/dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or read `/etc/dotenvx/personal-agent-infra.env.keys`. Transferring the dotenvx private key between VPSes is an administrator-only guided console action; agents don't automate or participate in it. Adding a new key via `dotenvx set KEY value -f .env` doesn't need the private key, but still ask the administrator to run it themself—an agent-entered value can't be confirmed without ever appearing in chat.
 - When changing secret keys or `.env.example`, report key names and ask the administrator to update the encrypted `.env` manually; never ask for or print values in chat.
 
 ## Security-sensitive knobs
@@ -65,14 +62,14 @@ VPS migration (backup old VPS -> `site.yml` on new VPS -> restore): see README.m
 - `scripts/hermes-sudo.sh on` writes `/etc/sudoers.d/90-hermes-agent`, which gives `hermes` passwordless root. `off` removes only that file.
 - Membership in the `docker` group is also root-equivalent, so `hermes` in `docker` means `hermes` is effectively root.
 - Mention either one whenever a change touches `hermes` permissions.
-- `/var/lib/butler` (`scripts/install/80-butler-data.sh`) is read-write for exactly `hermes` and `ubuntu` via ACLs, no one else. It holds the administrator's task DB and attachments.
+- `/var/lib/butler` (role `butler`, `tasks/main.yml`) is read-write for `hermes`, `ubuntu`, and root via ACLs. It holds administrator task DB and attachments.
 - Butler runs from Compose with a root backend only because host `hermes` UID is not portable into images. Backend has a read-write `/var/lib/butler` mount and read-only wiki mount; host CLI remains `hermes`. Do not add `hermes` to Docker group.
 
 ## Working here
 
-- Before proposing Ansible changes, run `cd ansible && ansible-playbook playbooks/site.yml playbooks/backup.yml playbooks/restore.yml --syntax-check`.
-- Before proposing a change, run `bash -n scripts/*.sh scripts/install/*.sh`, relevant Python tests, `scripts/dotenv-env.sh status`, and `systemd-analyze verify systemd/*.service`. Agents never run `dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on the committed `.env`, or `docker compose` against live services.
-- Install steps must stay idempotent. Print `==> <Name>: already installed, skipping` when there's nothing to do; `init.sh` detects skipped steps from that line.
+- Before proposing Ansible changes, run `cd ansible && ansible-playbook playbooks/init.yml playbooks/services.yml playbooks/backup.yml playbooks/restore.yml --syntax-check`.
+- Before proposing a change, run `bash -n scripts/*.sh`, relevant Python tests, `scripts/dotenv-env.sh status`, and `systemd-analyze verify systemd/*.service`. Agents never run `scripts/dotenv-env.sh render`, `dotenvx decrypt`, `dotenvx encrypt` on committed `.env`, or `docker compose` against live services.
+- Base-host initialization (packages, Docker, Tailscale, shell, firewall, Hermes user/agent, dotenvx) lives in `ansible/playbooks/init.yml`; core services and Butler deployment live in `ansible/playbooks/services.yml`. Don't reintroduce parallel Bash setup for steps either playbook covers.
 - Keep scripts short and use Bash and core utilities only. Mark deliberate shortcuts with a `# ponytail:` comment that names the limit.
 - If `docker` shows "unknown" or permission denied right after `usermod -aG docker`, the session has stale groups, often from a shared SSH ControlMaster connection. Run `exec sudo -iu ubuntu` rather than reconnecting.
-- The following restart live services, so ask the administrator before running them: `deploy.sh`, `systemctl restart`, `scripts/butler.sh up`, or `scripts/butler.sh down`.
+- The following restart live services, so ask administrator before running them: `deploy.sh`, `systemctl restart`, `scripts/butler.sh restart`, `scripts/butler.sh down`, or `ansible-playbook playbooks/services.yml --tags butler-deploy`.

@@ -1,4 +1,4 @@
-- name: Bootstrap personal-agent infrastructure
+- name: Initialize personal-agent infrastructure
   hosts: all
   become: true
   roles:
@@ -12,9 +12,3 @@
       tags: [devtools]
     - role: dotenvx
       tags: [dotenvx]
-    - role: headroom
-      tags: [headroom]
-    - role: 9router
-      tags: [9router]
-    - role: butler
-      tags: [butler]

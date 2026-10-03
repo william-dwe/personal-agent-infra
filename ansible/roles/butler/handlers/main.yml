@@ -1,1 +1,1 @@
-# Butler application deployment remains phase 2; data ACLs need no handler.
+# Butler deployment runs synchronously; no deferred handler.

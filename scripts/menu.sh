@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VPS control panel (whiptail TUI): guided new-VPS setup, install steps, dashboard user, logs.
+# VPS control panel (whiptail TUI): status, dashboard controls, Hermes sudo. Initialize via ansible/playbooks/init.yml, then deploy services via ansible/playbooks/services.yml.
 # Usage: ./scripts/menu.sh
 [ -n "${BASH_VERSION:-}" ] || exec bash "$0" "$@"
 set -uo pipefail
@@ -19,7 +19,7 @@ status_text() {
   active=$(systemctl list-units 'hermes-dashboard@*' --state=active --plain --no-legend | awk '{print $1}' | xargs)
   holder=$(ps -eo user=,args= | awk '/hermes dashboard/ && /9119/ && !/awk/ {print $1; exit}')
   ip=$(tailscale ip -4 2>/dev/null | head -1)
-  # ponytail: no docker group yet (needs re-login after 10-docker) reads as "unknown"; sudo would prompt inside the TUI.
+  # ponytail: no docker group yet (needs re-login after bootstrap) reads as "unknown"; sudo would prompt inside the TUI.
   router=$(docker inspect -f '{{.State.Status}}' 9router 2>/dev/null) || router="unknown (not created / no docker access)"
   headroom=$(docker inspect -f '{{.State.Status}}' headroom 2>/dev/null) || headroom="unknown (not created / no docker access)"
 
@@ -72,101 +72,6 @@ switch_user() {
   clear; ./scripts/deploy.sh "$user"; pause
 }
 
-dotenv_key_ready() {
-  local key=/etc/dotenvx/personal-agent-infra.env.keys
-  sudo test -f "$key" && sudo test ! -L "$key" && [ "$(sudo stat -c '%u:%g:%a' "$key" 2>/dev/null)" = 0:0:600 ]
-}
-
-restore_dotenv_key() {
-  local choice source user
-  choice=$(whiptail --title "$TITLE" --menu "Restore dotenvx private key" 15 76 4 \
-    1 "Show one-time authorization command for old VPS" \
-    2 "Copy directly from trusted old VPS over SSH" \
-    3 "I restored it manually; recheck" \
-    b "Cancel setup" 3>&1 1>&2 2>&3) || return 1
-  case $choice in
-    1)
-      user=$(whiptail --title "$TITLE" --inputbox "Source SSH user on old VPS, for example ubuntu:" 10 70 3>&1 1>&2 2>&3) || return 1
-      clear
-      ./scripts/dotenv-restore-ssh-key.sh authorization "$user"
-      pause
-      restore_dotenv_key
-      ;;
-    2)
-      source=$(whiptail --title "$TITLE" --inputbox \
-        "Source SSH target, for example ubuntu@old-vps.\n\nRun 'Show one-time authorization command' there first. Unknown host fingerprints require explicit terminal acceptance. Key never appears in chat, Git, argv, or logs." \
-        14 76 3>&1 1>&2 2>&3) || return 1
-      clear
-      ./scripts/dotenv-key-transfer.sh "$source"; echo "exit: $?"; pause
-      ;;
-    3) ;;
-    b) return 1 ;;
-  esac
-}
-
-guided_vps_setup() {
-  whiptail --title "$TITLE" --yesno \
-    "New VPS setup runs package updates, Tailscale login, Docker, Hermes, dotenvx, firewall, Butler/wiki clones, and service startup.\n\nYou must securely restore dotenvx private key before services start.\n\nContinue?" \
-    16 76 || return
-
-  clear
-  if ! ./scripts/init.sh 00-system 10-docker 20-tailscale 30-zsh 40-firewall 50-hermes-user 60-hermes-agent 65-dotenvx; then
-    echo "Bootstrap prerequisites failed. Fix failed step, then run guided setup again."
-    pause
-    return
-  fi
-  sudo install -d -m 0700 /etc/dotenvx
-
-
-  while ! dotenv_key_ready; do
-    if ! restore_dotenv_key; then
-      echo "dotenvx private key not restored; services were not started."
-      pause
-      return
-    fi
-    if ! dotenv_key_ready; then
-      whiptail --title "$TITLE" --msgbox \
-        "dotenvx private key missing or invalid.\n\nRequired path: /etc/dotenvx/personal-agent-infra.env.keys\nRequired owner and mode: root:root, 0600.\n\nTransfer failure leaves any existing destination key unchanged." \
-        14 76
-    fi
-  done
-
-  clear
-  if ! ./scripts/init.sh; then
-    echo "Full bootstrap failed. Fix failed step, then re-run guided setup; finished steps skip."
-    pause
-    return
-  fi
-
-  local user; user=$(pick_user) || return
-  whiptail --title "$TITLE" --yesno \
-    "Start Hermes dashboard and gateway as '$user'?\n\nThis restarts dashboard service and disconnects open dashboard sessions." \
-    12 76 || return
-  clear
-  ./scripts/deploy.sh "$user" || { pause; return; }
-  sudo ./scripts/check-headroom.sh
-  pause
-}
-
-pick_steps() {
-  local args=() f desc
-  for f in scripts/install/[0-9][0-9]-*.sh; do
-    desc=$(grep -oP '==> \K[^."]+' "$f" | tail -1)   # last ==> line: "Installing Docker", ...
-    args+=("$(basename "$f" .sh)" "${desc:-step}" ON)
-  done
-  whiptail --title "$TITLE" --separate-output --checklist \
-    "Install steps (already-installed ones are skipped):" 18 60 10 "${args[@]}" 3>&1 1>&2 2>&3
-}
-
-run_install() {
-  local steps; steps=$(pick_steps) || return
-  [ -n "$steps" ] || return
-  clear
-  # shellcheck disable=SC2086  # one step name per line -> separate args
-  ./scripts/init.sh $steps
-  pause
-}
-
 toggle_hermes_sudo() {
   local f=/etc/sudoers.d/90-hermes-agent action msg
   clear; echo "Checking hermes sudo grant (your sudo password may be asked)..."
@@ -194,33 +99,17 @@ dashboard_menu() {
   esac
 }
 
-install_menu() {
-  local choice
-  choice=$(whiptail --title "$TITLE" --menu "Install and repair" 12 64 2 \
-    1 "Run selected install steps" \
-    2 "Run all install steps" \
-    b "Back" 3>&1 1>&2 2>&3) || return
-  case $choice in
-    1) run_install ;;
-    2) clear; ./scripts/init.sh; pause ;;
-  esac
-}
-
 while true; do
   status=$(status_text)
   # ponytail: capped at terminal height; on very short terminals the header gets clipped.
-  h=$(( $(wc -l <<<"$status") + 11 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
-  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 5 \
+  h=$(( $(wc -l <<<"$status") + 9 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
+  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 3 \
     1 "Dashboard controls" \
-    2 "Install or repair" \
-    3 "Set up new VPS" \
-    4 "Hermes sudo access" \
+    2 "Hermes sudo access" \
     q "Quit" 3>&1 1>&2 2>&3) || break
   case $choice in
     1) dashboard_menu ;;
-    2) install_menu ;;
-    3) guided_vps_setup ;;
-    4) toggle_hermes_sudo ;;
+    2) toggle_hermes_sudo ;;
     q) break ;;
   esac
 done

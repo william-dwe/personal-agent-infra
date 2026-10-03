@@ -23,12 +23,12 @@
         path: "/home/{{ agent_user }}/.local/bin/hermes"
       register: hermes_bin
 
-    - name: Require bootstrap prerequisites
+    - name: Require initialization prerequisites
       ansible.builtin.assert:
         that:
           - docker_bin.stat.exists
           - hermes_bin.stat.exists
-        fail_msg: "Run playbooks/site.yml on this host first"
+        fail_msg: "Run playbooks/init.yml on this host first"
 
     - name: Upload state archive
       ansible.builtin.copy:
