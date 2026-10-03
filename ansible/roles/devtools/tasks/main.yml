@@ -82,3 +82,10 @@
   args:
     creates: "/home/{{ admin_user }}/.local/bin/omp"
   when: not ansible_check_mode
+
+- name: Link OMP command
+  ansible.builtin.file:
+    src: "/home/{{ admin_user }}/.local/bin/omp"
+    dest: /usr/local/bin/omp
+    state: link
+  when: not ansible_check_mode
