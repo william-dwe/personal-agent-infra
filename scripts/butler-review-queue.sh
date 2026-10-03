@@ -2,9 +2,9 @@
 # Zero-token gate: start a librarian run only when Butler has review packets waiting.
 # Runs as hermes from butler-review-queue.timer. The token never appears in argv or logs.
 set -euo pipefail
-
 token_file=/home/hermes/.hermes/profiles/librarian/secrets/butler-librarian.token
-root=$(cd "$(dirname "$0")/.." && pwd)
+script=$(readlink -f "$0")
+root=$(cd "$(dirname "$script")/.." && pwd)
 prompt=$root/scripts/butler-review-queue.prompt.md
 base=http://127.0.0.1:8765/api/librarian/review-packets
 

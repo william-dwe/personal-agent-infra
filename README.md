@@ -13,7 +13,7 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 | Hermes dashboard | `hermes-dashboard@<user>` systemd template | `http://<tailscale-ip>:9119` |
 | 9router | Docker container; published host port | `http://<tailscale-ip>:20128` |
 | Headroom | Docker `app-network` only | `http://headroom:8787` |
-| Butler dashboard + API | Compose project `butler` from `/home/hermes/services/butler/compose.yml`; backend joins core Docker network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` |
+| Butler dashboard + API | Compose project `butler` from configured `BUTLER_DIR/compose.yml`; backend joins core Docker network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` |
 
 ## Quick start
 
@@ -28,16 +28,21 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 > ```
 
 ```bash
-# Install prerequisites and dotenvx CLI only.
-./scripts/init.sh dotenvx
-
-# Complete idempotent VPS bootstrap and dashboard deployment.
-./scripts/init.sh
-./scripts/deploy.sh [user]
+# Open guided setup. It installs whiptail if missing.
 ./scripts/menu.sh
 ```
 
-`init.sh` runs install steps in order and skips finished steps. `65-dotenvx` installs the dotenvx CLI and its global git clean filter. `70-headroom` and `81-butler-dashboard` decrypt the committed, dotenvx-encrypted `.env` into `/etc/personal-agent-infra.env` before using it; it is a root-owned regular file, never a symlink to repo `.env`. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
+Choose **Set up new VPS (guided)**. Flow runs prerequisite steps, pauses until dotenvx private key is restored at `/etc/dotenvx/personal-agent-infra.env.keys` with owner `root:root` and mode `0600`, completes idempotent bootstrap, chooses dashboard user, deploys it, then runs Headroom smoke check.
+
+Manual recovery path:
+
+```bash
+./scripts/init.sh dotenvx
+./scripts/init.sh
+./scripts/deploy.sh [user]
+```
+
+`init.sh` runs install steps in order and skips finished steps. `65-dotenvx` installs the dotenvx CLI and its global git clean filter. `75-services` writes root-owned `/etc/personal-agent-infra.paths` with non-secret `BUTLER_DIR` and `WIKI_DIR`; it defaults to `/home/hermes/services/{butler,second-brain-wiki}`. Set both absolute variables before first bootstrap to use another checkout base. `70-headroom` and `81-butler-dashboard` decrypt the committed, dotenvx-encrypted `.env` into `/etc/personal-agent-infra.env` before using it; it is a root-owned regular file, never a symlink to repo `.env`. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
 
 ## Scripts
 
@@ -58,7 +63,7 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 | `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
 | `scripts/install/65-dotenvx.sh` | Install dotenvx CLI and its global git clean filter. |
 | `scripts/install/70-headroom.sh` | Render runtime environment, then reconcile Headroom and 9router containers. |
-| `scripts/install/75-services.sh` | Clone Butler and second-brain-wiki under `/home/hermes/services`. Override public clone URLs with `BUTLER_REPO_URL` and `WIKI_REPO_URL`. |
+| `scripts/install/75-services.sh` | Clone Butler and second-brain-wiki. Defaults to `/home/hermes/services/{butler,second-brain-wiki}`; override once with absolute `BUTLER_DIR` and `WIKI_DIR`. |
 | `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
 | `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
 
@@ -89,5 +94,5 @@ dotenvx decrypt -f .env -fk /etc/dotenvx/personal-agent-infra.env.keys --stdout
 - 9router is published only on `TAILSCALE_IP`; Docker-published ports bypass UFW, so never bind `0.0.0.0`.
 - Headroom must not publish host port or Tailscale Serve rule; 9router calls `/v1/compress` without token.
 - `scripts/hermes-sudo.sh` grant and `docker` group membership are root-equivalent.
-- Butler runs only through `/home/hermes/services/butler/compose.yml`; host ports remain loopback. Backend joins `personal-agent-infra_app-network` only for 9router; frontend stays private.
+- Butler runs only through configured `BUTLER_DIR/compose.yml`; host ports remain loopback. Backend joins `personal-agent-infra_app-network` only for 9router; frontend stays private.
 - `/var/lib/butler` is shared through named ACLs by `hermes` and `ubuntu`. Butler container runs as root only for portable bind-mount ownership; do not add `hermes` to Docker group.

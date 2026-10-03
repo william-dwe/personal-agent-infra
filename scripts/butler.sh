@@ -2,8 +2,11 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-butler=/home/hermes/services/butler
 env=/etc/personal-agent-infra.env
+mapfile -d '' -t paths < <("$root/scripts/butler-paths.sh")
+[ "${#paths[@]}" -eq 2 ] || { echo "Invalid Butler path configuration." >&2; exit 1; }
+butler=${paths[0]}
+wiki=${paths[1]}
 usage() {
   echo "Usage: $0 {up|restart|down|status|logs}" >&2
   exit 2
@@ -11,11 +14,11 @@ usage() {
 
 [ $# -eq 1 ] || usage
 case $1 in up|restart|down|status|logs) ;; *) usage ;; esac
-[ "$root" = /home/ubuntu/services/personal-agent-infra ] && [ -d "$root/.git" ] || { echo "Missing infra checkout: /home/ubuntu/services/personal-agent-infra" >&2; exit 1; }
-[ -d "$butler/.git" ] || { echo "Missing Butler checkout: $butler" >&2; exit 1; }
+[ -d "$root/.git" ] || { echo "Missing infra checkout: $root" >&2; exit 1; }
+[ -d "$butler/.git" ] && [ -d "$wiki/.git" ] || { echo "Missing configured Butler or wiki checkout." >&2; exit 1; }
 sudo test -f "$env" && ! sudo test -L "$env" || { echo "Missing environment file: $env" >&2; exit 1; }
 
-compose=(sudo docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file "$env")
+compose=(sudo env "WIKI_DIR=$wiki" docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file "$env")
 
 migrate_legacy_units() {
   local unit link legacy=0
@@ -46,16 +49,15 @@ export_cli() (
   }
   trap cleanup EXIT
 
-  sudo install -d -m 0755 -o hermes -g hermes "$butler/backend/bin"
-  tmp=$(sudo mktemp "$butler/backend/bin/.butler.XXXXXX")
+  tmp=$(sudo mktemp /usr/local/bin/.butler.XXXXXX)
   "${compose[@]}" create backend
   created=1
   container=$("${compose[@]}" ps --all --quiet backend)
   [ -n "$container" ] || { echo "Butler backend export container missing" >&2; exit 1; }
   sudo docker cp "$container:/usr/local/bin/butler" "$tmp"
-  sudo chown hermes:hermes "$tmp"
+  sudo chown root:root "$tmp"
   sudo chmod 0755 "$tmp"
-  sudo mv -f "$tmp" "$butler/backend/bin/butler"
+  sudo mv -f "$tmp" /usr/local/bin/butler
   tmp=
 )
 

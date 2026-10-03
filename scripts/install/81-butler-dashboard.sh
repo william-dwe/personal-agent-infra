@@ -3,11 +3,12 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
-services=/home/hermes/services
-butler=$services/butler
-wiki=$services/second-brain-wiki
 data=/var/lib/butler
 link=$data/wiki
+mapfile -d '' -t paths < <("$root/scripts/butler-paths.sh")
+[ "${#paths[@]}" -eq 2 ] || { echo "Invalid Butler path configuration." >&2; exit 1; }
+butler=${paths[0]}
+wiki=${paths[1]}
 [ -d "$butler/.git" ] && [ -d "$wiki/.git" ] || { echo "Run install step 75-services first." >&2; exit 1; }
 if [ -e "$link" ] || [ -L "$link" ]; then
   if [ -L "$link" ] && [ "$(readlink -f "$link")" = "$wiki" ]; then
@@ -34,8 +35,7 @@ else
   sudo tailscale serve --bg --https=8444 http://127.0.0.1:3100
 fi
 
-compose=(sudo docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file /etc/personal-agent-infra.env)
-running=$("${compose[@]}" ps --status running --services)
+running=$(sudo env "WIKI_DIR=$wiki" docker compose --project-directory "$butler" -f "$butler/compose.yml" --env-file /etc/personal-agent-infra.env ps --status running --services)
 if [ "$running" = $'backend\nfrontend' ]; then
   echo "==> Butler containers: already installed, skipping"
 else

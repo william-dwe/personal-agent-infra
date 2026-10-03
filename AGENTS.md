@@ -8,8 +8,8 @@ no wiki notes or Butler application code.
 
 | Path | Owner | Who writes it |
 |---|---|---|
-| `/home/ubuntu/services/personal-agent-infra` (this repo) | `ubuntu` | `ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for William to run as `ubuntu`. |
-| `/home/hermes/services/second-brain-wiki` | `hermes` | Only the librarian agent, after William approves. Never put vault content here. |
+| This infra checkout | Script-derived root | `ubuntu` only. Agents running as `hermes` deliver changes as a `git apply` patch for William to run as `ubuntu`. |
+| Butler and wiki checkouts | `BUTLER_DIR` and `WIKI_DIR` in `/etc/personal-agent-infra.paths` | `hermes`; wiki only librarian writes after William approves. |
 | `/home/ubuntu/services/second-brain-service` | `ubuntu` | Legacy checkout. Retire it after migration; don't add features to it. |
 
 - Before editing any `services/...` path, check its absolute path and owner. Similar-looking copies have been edited by mistake before.
@@ -21,7 +21,7 @@ no wiki notes or Butler application code.
 | Component | Defined in | Runs as | Reach it at |
 |---|---|---|---|
 | Hermes dashboard (web + TUI) | `systemd/hermes-dashboard@.service` | `hermes-dashboard@<user>` (`hermes` or `ubuntu`, stored in `.dashboard-user`) | `http://<tailscale-ip>:9119` |
-| Butler dashboard + API | `/home/hermes/services/butler/compose.yml` project `butler` | containers; backend joins core network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` -> `127.0.0.1:8765` |
+| Butler dashboard + API | configured `BUTLER_DIR/compose.yml` project `butler` | containers; backend joins core network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` -> `127.0.0.1:8765` |
 | 9router (LLM router) | `docker-compose.yml` | container `9router` | `http://<tailscale-ip>:20128` |
 | Headroom (prompt compression) | `docker-compose.yml` | container `headroom` | `http://headroom:8787`, Docker network only |
 
@@ -38,7 +38,7 @@ systemd/                       hermes-dashboard@.service template (EnvironmentFi
 scripts/init.sh                runs scripts/install/NN-*.sh in order; finished steps print "skipping"
 scripts/install/NN-*.sh        idempotent bootstrap steps: system, docker, tailscale, zsh, firewall,
                                hermes user, hermes agent, dotenvx CLI, headroom, Butler checkouts/data/dashboard activation
-scripts/butler.sh              scoped Butler Compose up/restart/down/status/logs; up exports host CLI
+scripts/butler.sh              scoped Butler Compose up/restart/down/status/logs; reads `/etc/personal-agent-infra.paths`, exports `/usr/local/bin/butler`
 scripts/deploy.sh [user]       link unit + switch dashboard user
 scripts/menu.sh                whiptail control panel (status, deploy, logs, install, hermes sudo)
 scripts/hermes-sudo.sh         sudo ./scripts/hermes-sudo.sh on|off|status
@@ -47,6 +47,8 @@ scripts/check-headroom.sh      read-only smoke test for 9router -> headroom
 
 
 Not tracked (see `.gitignore`): `.env.keys` (dotenvx private key material, never generated here—lives root-only on the VPS), `.dashboard-user`, `data/` (9router DB), `.archive/`. `.env` itself IS tracked, dotenvx-encrypted.
+
+`75-services.sh` writes root-owned `/etc/personal-agent-infra.paths` mode `0644`: exactly absolute `BUTLER_DIR` and `WIKI_DIR`. Set both only before its first run; changing live locations requires an approved Butler stop, path-file update, and start.
 
 ## Env secrets
 
