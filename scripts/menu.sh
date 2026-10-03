@@ -209,21 +209,18 @@ install_menu() {
 while true; do
   status=$(status_text)
   # ponytail: capped at terminal height; on very short terminals the header gets clipped.
-  h=$(( $(wc -l <<<"$status") + 12 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
-  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 6 \
-    1 "Status" \
-    2 "Set up new VPS" \
-    3 "Dashboard controls" \
-    4 "Install or repair" \
-    5 "Hermes sudo access" \
+  h=$(( $(wc -l <<<"$status") + 11 )); rows=$(tput lines 2>/dev/null || echo 24); (( h > rows )) && h=$rows
+  choice=$(whiptail --title "$TITLE" --menu "$status" "$h" 76 5 \
+    1 "Dashboard controls" \
+    2 "Install or repair" \
+    3 "Set up new VPS" \
+    4 "Hermes sudo access" \
     q "Quit" 3>&1 1>&2 2>&3) || break
-  user=$(cat .dashboard-user 2>/dev/null || echo hermes)
   case $choice in
-    1) clear; systemctl --no-pager status "hermes-dashboard@$user"; pause ;;
-    2) guided_vps_setup ;;
-    3) dashboard_menu ;;
-    4) install_menu ;;
-    5) toggle_hermes_sudo ;;
+    1) dashboard_menu ;;
+    2) install_menu ;;
+    3) guided_vps_setup ;;
+    4) toggle_hermes_sudo ;;
     q) break ;;
   esac
 done
