@@ -74,7 +74,7 @@ switch_user() {
 
 dotenv_key_ready() {
   local key=/etc/dotenvx/personal-agent-infra.env.keys
-  [ -f "$key" ] && [ ! -L "$key" ] && [ "$(sudo stat -c '%u:%g:%a' "$key" 2>/dev/null)" = 0:0:600 ]
+  sudo test -f "$key" && sudo test ! -L "$key" && [ "$(sudo stat -c '%u:%g:%a' "$key" 2>/dev/null)" = 0:0:600 ]
 }
 
 restore_dotenv_key() {
