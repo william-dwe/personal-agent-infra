@@ -97,7 +97,7 @@ restore_dotenv_key() {
         "Source SSH target, for example ubuntu@old-vps.\n\nRun 'Show one-time authorization command' there first. Unknown host fingerprints require explicit terminal acceptance. Key never appears in chat, Git, argv, or logs." \
         14 76 3>&1 1>&2 2>&3) || return 1
       clear
-      ./scripts/dotenv-key-transfer.sh "$source"
+      ./scripts/dotenv-key-transfer.sh "$source"; echo "exit: $?"; pause
       ;;
     3) ;;
     b) return 1 ;;
