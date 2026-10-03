@@ -32,7 +32,6 @@
     - node
     - npm
     - npx
-    - corepack
   when: not ansible_check_mode
 
 - name: Download Go archive
