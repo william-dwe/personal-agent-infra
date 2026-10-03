@@ -75,7 +75,7 @@
   when: not ansible_check_mode
 
 - name: Install OMP
-  ansible.builtin.shell: curl -fsSL https://omp.sh/install | sh
+  ansible.builtin.shell: curl -fsSL https://omp.sh/install | sh -s -- --binary
   become_user: "{{ admin_user }}"
   environment:
     HOME: "/home/{{ admin_user }}"

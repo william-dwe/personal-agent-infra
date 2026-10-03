@@ -61,6 +61,8 @@ ansible-playbook -i '<host>,' -u ubuntu playbooks/services.yml --tags butler-dep
 Add `-K` when sudo needs password. `init.yml` pauses for interactive Tailscale login. `services.yml` starts Headroom and 9router; `--tags butler-deploy` explicitly clones, updates, builds, and restarts Butler. Use `--tags <name>` to run another area.
 
 `ansible/inventory.yml` holds environment-specific non-secret values (`admin_user`, `agent_user`, dashboard user, checkout path, repo URL, runtime env path). It also defines `butler_repo_url`, `butler_dir`, `butler_deploy_ref`, `wiki_repo_url`, and `wiki_dir`. Override them in another inventory for a different VPS. `init.yml` orders host prerequisites: `common`, `tailscale`, `hermes`, `devtools`, then `dotenvx`. `services.yml` starts Headroom and 9router. `services.yml --tags butler-deploy` deploys Butler at `butler_deploy_ref`. `main` deploys latest upstream `main`; use a tag or commit for repeatable deployment. `backup.yml` and `restore.yml` own migration orchestration.
+`init.yml` installs `omp` at `/home/<admin_user>/.local/bin/omp`.
+
 
 Redeploy configured Butler ref:
 
