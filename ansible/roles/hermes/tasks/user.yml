@@ -1,9 +1,32 @@
 - name: Create Hermes user
   ansible.builtin.user:
     name: "{{ agent_user }}"
-    shell: /bin/bash
     groups: sudo
     append: true
+
+- name: Install Oh My Zsh for Hermes
+  ansible.builtin.shell: sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  become_user: "{{ agent_user }}"
+  environment:
+    RUNZSH: "no"
+    CHSH: "no"
+  args:
+    creates: "/home/{{ agent_user }}/.oh-my-zsh"
+
+- name: Set Hermes shell to Zsh
+  ansible.builtin.user:
+    name: "{{ agent_user }}"
+    shell: /bin/zsh
+
+- name: Fall back to Zsh from Bash if login shell is overridden
+  ansible.builtin.blockinfile:
+    path: "/home/{{ agent_user }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: exec zsh fallback"
+    block: |
+      if [ -t 1 ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
+        exec zsh
+      fi
+    insertafter: EOF
 
 - name: Check Hermes authorized keys
   ansible.builtin.stat:

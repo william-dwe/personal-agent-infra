@@ -11,3 +11,13 @@
   ansible.builtin.user:
     name: "{{ admin_user }}"
     shell: /bin/zsh
+
+- name: Fall back to Zsh from Bash if login shell is overridden
+  ansible.builtin.blockinfile:
+    path: "/home/{{ admin_user }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: exec zsh fallback"
+    block: |
+      if [ -t 1 ] && [ -z "$ZSH_VERSION" ] && command -v zsh >/dev/null 2>&1; then
+        exec zsh
+      fi
+    insertafter: EOF
