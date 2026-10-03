@@ -15,7 +15,7 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 | Headroom | Docker `app-network` only | `http://headroom:8787` |
 | Butler dashboard + API | Compose project `butler` from configured `BUTLER_DIR/compose.yml`; backend joins core Docker network only for 9router | Tailscale HTTPS `:8444` -> host loopback `:3100` |
 
-## Quick start
+## Quick start (new VPS)
 
 > **Prerequisite:** Install Git and configure GitHub SSH access before cloning or deploying.
 >
@@ -27,57 +27,13 @@ Interactive version with summary cards: [docs/architecture.html](docs/architectu
 > ssh -T git@github.com
 > ```
 
-```bash
-# Open guided setup. It installs whiptail if missing.
-./scripts/menu.sh
-```
-
-Choose **Set up new VPS (guided)**. Flow runs prerequisite steps, pauses until dotenvx private key is restored at `/etc/dotenvx/personal-agent-infra.env.keys` with owner `root:root` and mode `0600`, completes idempotent bootstrap, chooses dashboard user, deploys it, then runs Headroom smoke check.
-
-Manual recovery path:
-
-```bash
-./scripts/init.sh dotenvx
-./scripts/init.sh
-./scripts/deploy.sh [user]
-```
-
-`init.sh` runs install steps in order and skips finished steps. `65-dotenvx` installs the dotenvx CLI and its global git clean filter. `75-services` writes root-owned `/etc/personal-agent-infra.paths` with non-secret `BUTLER_DIR` and `WIKI_DIR`; it defaults to `/home/hermes/services/{butler,second-brain-wiki}`. Set both absolute variables before first bootstrap to use another checkout base. `70-headroom` and `81-butler-dashboard` decrypt the committed, dotenvx-encrypted `.env` into `/etc/personal-agent-infra.env` before using it; it is a root-owned regular file, never a symlink to repo `.env`. `deploy.sh` selects one dashboard user because only one process can listen on `:9119`.
-
-## Scripts
-
-| Script | Purpose |
-|---|---|
-| `scripts/init.sh` | Run all or selected idempotent install steps. |
-| `scripts/deploy.sh [user]` | Link units and switch dashboard user. |
-| `scripts/menu.sh` | Whiptail control panel for status, deploy, logs, installs, and Hermes sudo. |
-| `scripts/check-headroom.sh` | Read-only 9router-to-Headroom smoke test. |
-| `scripts/hermes-sudo.sh on\|off\|status` | Manage Hermes passwordless sudo grant. |
-| `scripts/butler.sh up\|restart\|down\|status\|logs` | Scoped Butler Compose control; `up` rebuilds images and exports host CLI. |
-| `scripts/dotenv-env.sh render\|status` | Decrypt committed `.env` into `/etc/personal-agent-infra.env`, or report setup status without values. |
-| `scripts/install/00-system.sh` | Update system packages. |
-| `scripts/install/10-docker.sh` | Install Docker and add current user to `docker`. |
-| `scripts/install/20-tailscale.sh` | Install and connect Tailscale. |
-| `scripts/install/30-zsh.sh` | Install Zsh and Oh My Zsh. |
-| `scripts/install/40-firewall.sh` | Configure UFW. |
-| `scripts/install/50-hermes-user.sh` | Create non-root `hermes` user and copy SSH keys. |
-| `scripts/install/65-dotenvx.sh` | Install dotenvx CLI and its global git clean filter. |
-| `scripts/install/70-headroom.sh` | Render runtime environment, then reconcile Headroom and 9router containers. |
-| `scripts/install/75-services.sh` | Clone private Butler over SSH (`hermes` inherits your SSH key from step 50; must already have Butler repo access) and public second-brain-wiki over HTTPS. Defaults to `/home/hermes/services/{butler,second-brain-wiki}`; override once with absolute `BUTLER_DIR` and `WIKI_DIR`, or the clone URLs with `BUTLER_REPO_URL`/`WIKI_REPO_URL`. Trusts `github.com`'s SSH host key by pinning GitHub's own published fingerprint, never by blind scan-on-connect. |
-| `scripts/install/80-butler-data.sh` | Create `/var/lib/butler`, task-tracker data dir shared by `hermes` and `ubuntu` (ACLs). |
-| `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
-
-## Ansible (new VPS)
-
-Ansible bootstraps the same base host as install steps 00-70 and 80 plus `deploy.sh`; bash scripts remain available. Phase 1 does not clone Butler or wiki or start Butler. After bootstrap, run `./scripts/init.sh 75-services 81-butler-dashboard` and enable `butler-review-queue.timer` manually.
-
-Install Ansible and Git on control node. Run locally from new VPS, or target it over SSH from laptop:
+Install Ansible and Git on the control node. Run locally from the new VPS, or target it over SSH from a laptop:
 
 ```bash
 sudo apt-get install -y ansible git
 ```
 
-Create vault on old VPS. `secret.txt` is one git-ignored line; store it in password manager. `vault.yml` is ciphertext safe to commit.
+Create the vault on the old VPS. `ansible/secret.txt` is one git-ignored line; store it in a password manager. `vault.yml` is ciphertext safe to commit.
 
 ```bash
 cd ansible
@@ -85,22 +41,50 @@ cd ansible
 sudo cat /etc/dotenvx/personal-agent-infra.env.keys | python3 -c 'import json,sys; print("vault_dotenvx_private_key: " + json.dumps(sys.stdin.read()))' | ansible-vault encrypt --output group_vars/all/vault.yml
 ```
 
-On new VPS, clone repo, write same one-line `ansible/secret.txt` with mode `0600`, then run:
+On the new VPS, clone this repo, write the same one-line `ansible/secret.txt` with mode `0600`, then run:
 
 ```bash
 cd ansible
 ansible-playbook playbooks/site.yml
 ```
 
-From laptop:
+From a laptop:
 
 ```bash
 ansible-playbook -i '<host>,' -u ubuntu playbooks/site.yml
 ```
 
-Add `-K` when sudo needs password. Playbook pauses for interactive Tailscale login. Use `--tags <name>` to run one bootstrap area.
+Add `-K` when sudo needs a password. The playbook pauses for interactive Tailscale login. Use `--tags <name>` to run one bootstrap area.
 
-`ansible/inventory.yml` holds environment-specific non-secret values (`admin_user`, `agent_user`, dashboard user, checkout path, repo URL, runtime env path). Override them in another inventory for a different VPS. `playbooks/site.yml` orders roles by dependency: `common`, `tailscale`, `hermes`, `dotenvx`, `headroom`, `9router`, then `butler`. `common` owns shared OS setup and splits packages, Docker, shell, firewall, and repository tasks; other roles own platform components or applications. `backup.yml` and `restore.yml` own migration orchestration. Each role uses standard `defaults/main.yml`, `vars/main.yml`, `tasks/main.yml`, and `handlers/main.yml` layout.
+`ansible/inventory.yml` holds environment-specific non-secret values (`admin_user`, `agent_user`, dashboard user, checkout path, repo URL, runtime env path). Override them in another inventory for a different VPS. `playbooks/site.yml` orders roles by dependency: `common`, `tailscale`, `hermes`, `devtools`, `dotenvx`, `headroom`, `9router`, then `butler`. `common` owns shared OS setup and splits packages, Docker, shell, firewall, and repository tasks; `devtools` installs pinned Node.js and Go plus Python pip, TypeScript, Herdr, and OMP for `admin_user`; other roles own platform components or applications. `backup.yml` and `restore.yml` own migration orchestration. Each role uses the standard `defaults/main.yml`, `vars/main.yml`, `tasks/main.yml`, and `handlers/main.yml` layout.
+
+`site.yml` does not clone Butler or the wiki, or start Butler. After it finishes, run:
+
+```bash
+sudo bash scripts/install/75-services.sh
+sudo bash scripts/install/81-butler-dashboard.sh
+```
+
+Then enable `butler-review-queue.timer` manually, and choose a dashboard user:
+
+```bash
+./scripts/deploy.sh [user]
+```
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/deploy.sh [user]` | Link units and switch dashboard user. |
+| `scripts/menu.sh` | Whiptail control panel for status, dashboard controls, and Hermes sudo. |
+| `scripts/check-headroom.sh` | Read-only 9router-to-Headroom smoke test. |
+| `scripts/hermes-sudo.sh on\|off\|status` | Manage Hermes passwordless sudo grant. |
+| `scripts/butler.sh up\|restart\|down\|status\|logs` | Scoped Butler Compose control; `up` rebuilds images and exports host CLI. |
+| `scripts/dotenv-env.sh render\|status` | Decrypt committed `.env` into `/etc/personal-agent-infra.env`, or report setup status without values. |
+| `scripts/install/75-services.sh` | Clone private Butler over SSH (`hermes` needs Butler repo access) and public second-brain-wiki over HTTPS. Defaults to `/home/hermes/services/{butler,second-brain-wiki}`; override once with absolute `BUTLER_DIR` and `WIKI_DIR`, or the clone URLs with `BUTLER_REPO_URL`/`WIKI_REPO_URL`. Trusts `github.com`'s SSH host key by pinning GitHub's own published fingerprint, never by blind scan-on-connect. |
+| `scripts/install/81-butler-dashboard.sh` | Link `/var/lib/butler/wiki`, persist Tailscale Serve `:8444`, and start Butler Compose. |
+
+## Migration (existing VPS)
 
 State migration stops Hermes, review timer, and all containers while archiving. Archives contain plaintext secrets from Hermes `.env`, librarian token, and 9router state; keep only in git-ignored `ansible/backups/`, then delete after migration.
 
@@ -114,18 +98,13 @@ ansible-playbook playbooks/restore.yml -e backup_file=backups/<name>.tar.zst
 
 ## Secrets
 
-`.env` at repo root IS committed to this public repo, and that is intentional: it holds [dotenvx](https://dotenvx.com)-encrypted values (`KEY=encrypted:...`), not plaintext. The only secret-bearing runtime file is private key `/etc/dotenvx/personal-agent-infra.env.keys`, root-owned mode `0600`, generated once on VPS; its only copy outside VPS is Ansible Vault ciphertext `ansible/group_vars/all/vault.yml`, decryptable only with git-ignored one-line `ansible/secret.txt`. `scripts/install/65-dotenvx.sh` installs dotenvx CLI and global (machine-level) git clean filter (`dotenvx protect`) that blocks committing plaintext `.env*` on this machine as safety net.
+`.env` at repo root IS committed to this public repo, and that is intentional: it holds [dotenvx](https://dotenvx.com)-encrypted values (`KEY=encrypted:...`), not plaintext. The only secret-bearing runtime file is private key `/etc/dotenvx/personal-agent-infra.env.keys`, root-owned mode `0600`, generated once on VPS; its only copy outside VPS is Ansible Vault ciphertext `ansible/group_vars/all/vault.yml`, decryptable only with git-ignored one-line `ansible/secret.txt`. The `dotenvx` Ansible role installs the dotenvx CLI and a global (machine-level) git clean filter (`dotenvx protect`) that blocks committing plaintext `.env*` on this machine as a safety net.
 
-`scripts/dotenv-env.sh render` (root only) decrypts `.env` using the private key, drops its stale `TAILSCALE_IP`/`BUTLER_ORIGIN`/`BUTLER_WEB_ORIGIN` lines, injects current host-derived values for those three, and atomically installs root-owned `/etc/personal-agent-infra.env` mode `0600`. It never prints secret values. `70-headroom` and `81-butler-dashboard` call it automatically. `scripts/dotenv-env.sh status` reports CLI/key/render state without values.
+`scripts/dotenv-env.sh render` (root only) decrypts `.env` using the private key, drops its stale `TAILSCALE_IP`/`BUTLER_ORIGIN`/`BUTLER_WEB_ORIGIN` lines, injects current host-derived values for those three, and atomically installs root-owned `/etc/personal-agent-infra.env` mode `0600`. It never prints secret values. The `dotenvx` and `headroom` Ansible roles, and `81-butler-dashboard.sh`, call it automatically. `scripts/dotenv-env.sh status` reports CLI/key/render state without values.
 
 ### Restore key from old VPS
 
-Guided setup offers two steps under **Restore dotenvx private key**:
-
-1. **Show one-time authorization command for old VPS**: generates (once) a dedicated, passphrase-less SSH key at `~/.ssh/id_ed25519_dotenvx_restore` on this VPS, then prints commands to run in an authenticated console on the old VPS. Those commands append one `authorized_keys` line restricted with `restrict,command="sudo -n /usr/bin/cat /etc/dotenvx/personal-agent-infra.env.keys"` — no shell, no port/agent forwarding, no other command — and add one scoped `/etc/sudoers.d/90-dotenvx-key-restore` entry permitting only that exact `cat`. Run those commands yourself on the old VPS; this repo never automates writes to a host it doesn't already trust.
-2. **Copy directly from trusted old VPS over SSH**: enter the source target, e.g. `ubuntu@old-vps`. The dedicated key authenticates; password and keyboard-interactive auth are disabled; an unknown host fingerprint requires explicit terminal acceptance. The helper streams the key into a root-only temporary file, proves it decrypts committed infra `.env`, then atomically installs `/etc/dotenvx/personal-agent-infra.env.keys` as `root:root` mode `0600`. Failed transfer leaves any existing destination key unchanged.
-
-After a successful transfer, remove the `authorized_keys` line and `/etc/sudoers.d/90-dotenvx-key-restore` from the old VPS; the restore key never grants anything beyond reading that one file.
+Transferring `/etc/dotenvx/personal-agent-infra.env.keys` from an old VPS to a new one is an administrator-only, guided console action; it requires a manual authorization step on the old VPS and is not automated by Ansible or any script in this repo.
 
 To add or rotate a secret, an administrator with the encrypted `.env` checked out runs, on a trusted terminal, never in chat:
 

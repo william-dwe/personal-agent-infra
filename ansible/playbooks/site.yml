@@ -8,6 +8,8 @@
       tags: [tailscale]
     - role: hermes
       tags: [hermes]
+    - role: devtools
+      tags: [devtools]
     - role: dotenvx
       tags: [dotenvx]
     - role: headroom
