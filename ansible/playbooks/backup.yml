@@ -7,6 +7,11 @@
     infra_rel: "{{ infra_dir | regex_replace('^/', '') }}"
 
   tasks:
+    - name: Check OMP state
+      ansible.builtin.stat:
+        path: "/home/{{ admin_user }}/.omp"
+      register: omp_state
+
     - name: Stop and archive state
       block:
         - name: Stop services
@@ -21,6 +26,8 @@
             --exclude=*.sock
             {{ infra_rel }}/data var/lib/butler
             home/{{ agent_user }}/.hermes home/{{ agent_user }}/.local/bin
+            home/{{ admin_user }}/.local/bin/omp
+            {{ 'home/' ~ admin_user ~ '/.omp' if omp_state.stat.exists else '' }}
       always:
         - name: Resume services
           ansible.builtin.import_tasks: tasks/start_services.yml

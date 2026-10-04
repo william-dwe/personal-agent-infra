@@ -90,7 +90,7 @@ systemctl enable --now butler-review-queue.timer
 
 ## Migration (existing VPS)
 
-State migration stops Hermes, review timer, and all containers while archiving. Archives contain plaintext secrets from Hermes `.env`, librarian token, and 9router state; keep only in git-ignored `ansible/backups/`, then delete after migration.
+State migration stops Hermes, review timer, and all containers while archiving. Archives contain plaintext secrets from Hermes `.env`, librarian token, OMP user state, and 9router state; keep only in git-ignored `ansible/backups/`, then delete after migration.
 
 ```bash
 # Old VPS
