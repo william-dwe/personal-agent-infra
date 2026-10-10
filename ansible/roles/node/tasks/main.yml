@@ -1,0 +1,41 @@
+- name: Install developer tool dependencies
+  ansible.builtin.apt:
+    name:
+      - python-is-python3
+      - python3-pip
+      - xz-utils
+    state: present
+    update_cache: true
+
+- name: Download Node.js archive
+  ansible.builtin.get_url:
+    url: "https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-{{ node_platform }}.tar.xz"
+    dest: "/tmp/node-v{{ node_version }}-{{ node_platform }}.tar.xz"
+    checksum: "sha256:{{ node_sha256 }}"
+    mode: "0644"
+  when: not ansible_check_mode
+
+- name: Extract Node.js
+  ansible.builtin.unarchive:
+    src: "/tmp/node-v{{ node_version }}-{{ node_platform }}.tar.xz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/node-v{{ node_version }}-{{ node_platform }}/bin/node"
+  when: not ansible_check_mode
+
+- name: Link Node.js commands
+  ansible.builtin.file:
+    src: "/opt/node-v{{ node_version }}-{{ node_platform }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - node
+    - npm
+    - npx
+  when: not ansible_check_mode
+
+- name: Install TypeScript
+  ansible.builtin.command: npm install --global typescript
+  args:
+    creates: /usr/local/bin/tsc
+  when: not ansible_check_mode

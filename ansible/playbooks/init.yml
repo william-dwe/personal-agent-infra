@@ -8,7 +8,13 @@
       tags: [tailscale]
     - role: hermes
       tags: [hermes]
-    - role: devtools
-      tags: [devtools]
+    - role: node
+      tags: [node]
+    - role: go
+      tags: [go]
+    - role: herdr
+      tags: [herdr]
+    - role: omp
+      tags: [omp]
     - role: dotenvx
       tags: [dotenvx]
