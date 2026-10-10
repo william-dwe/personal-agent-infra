@@ -4,12 +4,22 @@
   environment:
     HOME: "/home/{{ admin_user }}"
   args:
-    creates: "/home/{{ admin_user }}/.local/bin/omp"
+    creates: "/opt/omp/bin/omp"
   when: not ansible_check_mode
+
+- name: Install OMP 9router plugin
+  ansible.builtin.command: "/opt/omp/bin/omp plugin install @qmahyar/pi-9router"
+  become_user: "{{ admin_user }}"
+  environment:
+    HOME: "/home/{{ admin_user }}"
+  args:
+    creates: "/home/{{ admin_user }}/.omp/plugins/node_modules/@qmahyar/pi-9router"
+  when: not ansible_check_mode
+  # ponytail: skills in ~/.omp/agent/skills are hand-authored state, restored from backup, not installed here.
 
 - name: Link OMP command
   ansible.builtin.file:
-    src: "/home/{{ admin_user }}/.local/bin/omp"
+    src: "/opt/omp/bin/omp"
     dest: /usr/local/bin/omp
     state: link
   when: not ansible_check_mode

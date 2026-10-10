@@ -1,8 +1,6 @@
 - name: Install developer tool dependencies
   ansible.builtin.apt:
     name:
-      - python-is-python3
-      - python3-pip
       - xz-utils
     state: present
     update_cache: true

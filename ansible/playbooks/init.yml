@@ -6,6 +6,8 @@
       tags: [common]
     - role: tailscale
       tags: [tailscale]
+    - role: caddy
+      tags: [caddy]
     - role: hermes
       tags: [hermes]
     - role: node

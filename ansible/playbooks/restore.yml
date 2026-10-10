@@ -18,17 +18,11 @@
         path: /usr/bin/docker
       register: docker_bin
 
-    - name: Check Hermes prerequisite
-      ansible.builtin.stat:
-        path: "/home/{{ agent_user }}/.local/bin/hermes"
-      register: hermes_bin
-
     - name: Require initialization prerequisites
       ansible.builtin.assert:
         that:
           - docker_bin.stat.exists
-          - hermes_bin.stat.exists
-        fail_msg: "Run playbooks/init.yml on this host first"
+        fail_msg: "Run playbooks/init.yml on this host first (Hermes runs as Compose; its state comes from the archive)"
 
     - name: Upload state archive
       ansible.builtin.copy:

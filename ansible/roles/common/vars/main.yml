@@ -6,3 +6,5 @@ common_base_packages:
   - zsh
   - ufw
   - zstd
+  - python-is-python3
+  - python3-pip

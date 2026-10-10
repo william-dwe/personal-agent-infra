@@ -14,6 +14,8 @@
   ansible.builtin.command: "systemctl stop {{ stopped_units | join(' ') }}"
   when: stopped_units | length > 0
 
+# Compose services (hermes-gateway, hermes-dashboard, paseo, ...) are plain containers: stopped here,
+# restarted by start_services.yml. Units above cover only the pre-cutover bare-systemd install.
 - name: Find running containers
   ansible.builtin.command: docker ps -q
   register: running
