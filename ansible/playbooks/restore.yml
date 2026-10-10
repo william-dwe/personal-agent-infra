@@ -36,10 +36,17 @@
         - name: Stop services
           ansible.builtin.import_tasks: tasks/stop_services.yml
 
-        - name: Remove fresh 9router data
+        - name: List archive members
+          ansible.builtin.command: tar --zstd -tf /var/tmp/pai-restore.tar.zst
+          register: archive_members
+          changed_when: false
+
+        - name: Remove fresh 9router data (only where the archive carries a replacement)
           ansible.builtin.file:
-            path: "{{ infra_dir }}/data/9router"
+            path: "{{ item }}/9router"
             state: absent
+          loop: "{{ router_data_dirs }}"
+          when: (item | regex_replace('^/', '') ~ '/9router/') in archive_members.stdout_lines
 
         - name: Extract state archive
           ansible.builtin.command: tar --zstd --acls -xpf /var/tmp/pai-restore.tar.zst -C /

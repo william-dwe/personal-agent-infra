@@ -114,6 +114,8 @@ documented rollback (stops services, extracts archive, restarts services).
 - The first `--tags hermes,paseo` run failed on `--wait` (gateway unhealthy) and never reached paseo; re-run `--tags paseo`.
 - Container start migrates `config.yaml` schema 49 -> 50 (backups in `/home/hermes/.hermes/backups/config/`).
   Rollback to the bare-metal binary is untested against the new schema.
-- `backup.yml` stops all services/containers (~2.5 min). 9router data lives in `/srv/agent-infra/data/9router`
-  (the container's actual bind mount), NOT under `infra_dir`; `backup.yml` does not cover it. Archive it separately.
+- `backup.yml` stops all services/containers (~2.5 min). 9router's real bind mount is `/srv/agent-infra/data/9router`
+  (compose project dir `/srv/agent-infra`, not `infra_dir`). `router_data_dirs` in `inventory.yml` now lists both roots;
+  `backup.yml` archives whichever exist and `restore.yml` only wipes a `9router` dir the archive replaces.
+  The 2026-10-10 archive predates this fix; its 9router data is in `backups/pai-9router-srv-20261011.tar.zst`.
 - Verified: HERMES_UID/GID honored (entrypoint logs "Changing hermes UID to 1003"); paseo healthcheck passes.

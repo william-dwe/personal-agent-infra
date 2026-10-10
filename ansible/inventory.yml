@@ -6,6 +6,10 @@ all:
     dashboard_user: hermes
     infra_repo_url: https://github.com/william-dwe/personal-agent-infra.git
     infra_dir: "/home/{{ admin_user }}/services/personal-agent-infra"
+    # Compose bind-mount roots holding ./data/9router. 9router currently runs from /srv/agent-infra, not infra_dir.
+    router_data_dirs:
+      - "{{ infra_dir }}/data"
+      - /srv/agent-infra/data
     runtime_env: /etc/personal-agent-infra.env
     dotenvx_key_path: /etc/dotenvx/personal-agent-infra.env.keys
     butler_repo_url: git@github.com:william-dwe/butler.git

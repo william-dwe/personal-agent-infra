@@ -13,8 +13,12 @@
       loop:
         - "/opt/omp"
         - "/home/{{ admin_user }}/.omp"
-        - "{{ infra_dir }}/data"
       register: omp_state
+    - name: Check 9router data directories
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop: "{{ router_data_dirs }}"
+      register: data_state
     - name: Stop and archive state
       block:
         - name: Stop services
@@ -27,7 +31,7 @@
             --exclude=home/{{ agent_user }}/.hermes/cache
             --exclude=home/{{ agent_user }}/.hermes/logs
             --exclude=*.sock
-            {{ infra_rel ~ '/data' if omp_state.results[2].stat.exists else '' }} var/lib/butler
+            {{ data_state.results | selectattr('stat.exists') | map(attribute='item') | map('regex_replace', '^/', '') | join(' ') }} var/lib/butler
             home/{{ agent_user }}/.hermes home/{{ agent_user }}/.local/bin
             {{ 'opt/omp' if omp_state.results[0].stat.exists else '' }}
             {{ 'home/' ~ admin_user ~ '/.omp' if omp_state.results[1].stat.exists else '' }}
