@@ -1,0 +1,37 @@
+- name: Read Tailscale IPv4 address
+  ansible.builtin.command: tailscale ip -4
+  register: paseo_tail_ip
+  changed_when: false
+  check_mode: false
+
+- name: Require a Tailscale IPv4 address
+  ansible.builtin.assert:
+    that: paseo_tail_ip.stdout is match('^100\\.[0-9]+\\.[0-9]+\\.[0-9]+$')
+    fail_msg: "Tailscale IPv4 unavailable; refusing network bind"
+
+- name: Create Paseo home
+  ansible.builtin.file:
+    path: "/home/{{ agent_user }}/.paseo"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+
+- name: Configure Paseo on Tailscale only
+  ansible.builtin.copy:
+    dest: "/home/{{ agent_user }}/.paseo/config.json"
+    content: "{{ {'version': 1, 'daemon': {'listen': paseo_tail_ip.stdout ~ ':6767', 'relay': {'enabled': false}}, 'features': {'webUi': {'enabled': true}}, 'agents': {'providers': {'hermes': {'extends': 'acp', 'label': 'Hermes', 'command': ['/home/' ~ agent_user ~ '/.local/bin/hermes', 'acp']}}}} | to_nice_json }}\n"
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0600"
+    force: false
+    # ponytail: seed only; live config.json has hand-edited profiles/plugins. Edit listen manually if Tailscale IP changes.
+
+- name: Validate Paseo Compose configuration
+  ansible.builtin.command: docker compose -f {{ role_path }}/files/compose.yml --env-file {{ runtime_env }} config --quiet
+  changed_when: false
+
+- name: Start Paseo
+  ansible.builtin.command: docker compose -f {{ role_path }}/files/compose.yml --env-file {{ runtime_env }} up -d --wait --wait-timeout 120
+  changed_when: false
+  # ponytail: config.json change does not restart a running container; run `docker compose restart` manually.
