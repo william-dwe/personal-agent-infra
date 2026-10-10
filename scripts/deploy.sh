@@ -10,7 +10,7 @@ docker ps -q --filter name='^hermes-dashboard$' 2>/dev/null | grep -q . && { ech
 sudo test -x "/home/$user/.local/bin/hermes" || { echo "Hermes not installed for $user" >&2; exit 1; }
 echo "$user" > .dashboard-user
 
-for unit in "$PWD"/systemd/*.service; do
+for unit in "$PWD"/systemd/*.service "$PWD"/systemd/*.timer; do
   sudo systemctl link "$unit"       # symlink -> /etc/systemd/system/
 done
 sudo systemctl daemon-reload
@@ -24,4 +24,5 @@ sudo systemctl enable "hermes-dashboard@$user"
 sudo systemctl restart "hermes-dashboard@$user"
 sudo systemctl enable "hermes-gateway@$user"
 sudo systemctl restart "hermes-gateway@$user"
+sudo systemctl enable --now gitops-pull-apply.timer
 systemctl --no-pager --lines=5 status "hermes-dashboard@$user" || true

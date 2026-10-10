@@ -1,0 +1,10 @@
+[Unit]
+Description=Pull and apply butler-iac manifests every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

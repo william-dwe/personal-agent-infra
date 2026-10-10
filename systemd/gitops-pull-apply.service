@@ -1,0 +1,12 @@
+[Unit]
+Description=GitOps: pull butler-iac manifests and apply with docker compose
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/home/ubuntu/services/personal-agent-infra/scripts/gitops-pull-apply.sh
+TimeoutStartSec=30min
+NoNewPrivileges=yes
