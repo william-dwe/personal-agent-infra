@@ -12,9 +12,8 @@ services:
     volumes:
       # Identity/auth files (daemon-keypair.json, server-id, push-tokens.json, local-credential, cli-client-id, config.json).
       - /home/hermes/.paseo:/home/paseo/.paseo
-      # ACP provider command is /home/hermes/.local/bin/hermes: expose the bare install at identical paths.
-      # ponytail: needs host python/venv compatible with the image; unverified. Bare install must outlive cutover.
-      - /home/hermes/.local:/home/hermes/.local:ro
+      # OMP CLI for paseo-omp provider; Ansible-managed stable install path.
+      - /opt/omp:/opt/omp:ro
       - /home/hermes/.hermes:/home/hermes/.hermes
     environment:
       - HERMES_HOME=/home/hermes/.hermes

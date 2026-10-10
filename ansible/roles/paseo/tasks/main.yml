@@ -20,7 +20,7 @@
 - name: Configure Paseo on Tailscale only
   ansible.builtin.copy:
     dest: "/home/{{ agent_user }}/.paseo/config.json"
-    content: "{{ {'version': 1, 'daemon': {'listen': paseo_tail_ip.stdout ~ ':6767', 'relay': {'enabled': false}}, 'features': {'webUi': {'enabled': true}}, 'agents': {'providers': {'hermes': {'extends': 'acp', 'label': 'Hermes', 'command': ['/home/' ~ agent_user ~ '/.local/bin/hermes', 'acp']}}}} | to_nice_json }}\n"
+    content: "{{ {'version': 1, 'daemon': {'listen': paseo_tail_ip.stdout ~ ':6767', 'relay': {'enabled': false}}, 'features': {'webUi': {'enabled': true}}} | to_nice_json }}\n"
     owner: "{{ agent_user }}"
     group: "{{ agent_user }}"
     mode: "0600"
