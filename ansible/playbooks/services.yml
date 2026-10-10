@@ -9,3 +9,11 @@
     - role: butler
       tags: [butler-deploy]
       when: "'butler-deploy' in ansible_run_tags"
+    - role: node-exporter
+      tags: [node-exporter, monitoring]
+    - role: cadvisor
+      tags: [cadvisor, monitoring]
+    - role: prometheus
+      tags: [prometheus, monitoring]
+    - role: grafana
+      tags: [grafana, monitoring]
