@@ -11,8 +11,7 @@
       ansible.builtin.stat:
         path: "{{ item }}"
       loop:
-        - "/home/{{ admin_user }}/.bun/bin/omp"
-        - "/home/{{ admin_user }}/.local/bin/omp"
+        - "/opt/omp"
         - "/home/{{ admin_user }}/.omp"
       register: omp_state
     - name: Stop and archive state
@@ -29,9 +28,8 @@
             --exclude=*.sock
             {{ infra_rel }}/data var/lib/butler
             home/{{ agent_user }}/.hermes home/{{ agent_user }}/.local/bin
-            {{ 'home/' ~ admin_user ~ '/.bun/bin/omp' if omp_state.results[0].stat.exists else '' }}
-            {{ 'home/' ~ admin_user ~ '/.local/bin/omp' if omp_state.results[1].stat.exists else '' }}
-            {{ 'home/' ~ admin_user ~ '/.omp' if omp_state.results[2].stat.exists else '' }}
+            {{ 'opt/omp' if omp_state.results[0].stat.exists else '' }}
+            {{ 'home/' ~ admin_user ~ '/.omp' if omp_state.results[1].stat.exists else '' }}
       always:
         - name: Resume services
           ansible.builtin.import_tasks: tasks/start_services.yml
