@@ -1,7 +1,6 @@
 admin_user: ubuntu
 infra_repo_url: https://github.com/william-dwe/personal-agent-infra.git
 infra_dir: "/home/{{ admin_user }}/services/personal-agent-infra"
-# Placeholder: set to the real public butler-iac URL in inventory.
-butler_iac_repo_url: https://example.invalid/OWNER/butler-iac.git
+butler_iac_repo_url: https://github.com/william-dwe/butler-iac.git
 butler_iac_version: main
 deploy_manifests_dir: /srv/deploy-manifests
