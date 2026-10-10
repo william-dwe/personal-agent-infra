@@ -1,0 +1,104 @@
+# VPS Docker Migration — Cutover Runbook
+
+Status: DRAFT, not executed. This is the step that actually switches hermes-gateway,
+hermes-dashboard, and paseo from bare-metal systemd units to Docker containers. It is
+deliberately human-reviewed and NOT something OMP or Orchestrator runs unattended.
+
+## Pre-conditions (all true as of 2026-10-10)
+- All role/playbook work for this migration committed on `main` in
+  `/home/ubuntu/services/personal-agent-infra` (commits through `1018689`), NOT pushed.
+- `hermes` and `paseo` roles are tagged `[hermes, never]` / `[paseo, never]` in
+  `services.yml` — a normal `ansible-playbook services.yml` run skips them; only an
+  explicit `--tags hermes,paseo` run touches them.
+- `ansible-playbook services.yml --check --diff --tags hermes,paseo` passes clean
+  (0 failed) as of last verification.
+- Live bare-metal services confirmed active and untouched: `hermes-gateway@hermes`,
+  `hermes-dashboard@hermes`, `paseo.service`.
+
+## What changes
+- `hermes-gateway@hermes` + `hermes-dashboard@hermes` (bare systemd, Python venv) →
+  two Docker containers from `nousresearch/hermes-agent` image, same `~/.hermes` bind
+  mount, same ports (8642 internal only, 9119 on Tailscale IP).
+- `paseo.service` (bare systemd) → one Docker container from `ghcr.io/getpaseo/paseo`
+  image, `network_mode: host`, same `~/.paseo` + `~/.hermes` bind mounts, plus a new
+  `/opt/omp:/opt/omp:ro` mount for its `paseo-omp` provider.
+- Paseo's "Hermes" ACP provider entry is REMOVED (decided out of scope — see
+  session notes; Paseo can't reach a live Hermes session over network, only a fresh
+  local subprocess, and that subprocess needs a full Python runtime copy we decided
+  wasn't worth it).
+
+## Rollback point
+Before touching anything: take a real backup.
+```
+ansible-playbook playbooks/backup.yml
+```
+This produces `backups/pai-<host>-<timestamp>.tar.zst` fetched to the control
+machine. Confirm it exists and is non-empty before proceeding. If cutover goes wrong,
+`ansible-playbook playbooks/restore.yml -e backup_file=backups/<name>.tar.zst` is the
+documented rollback (stops services, extracts archive, restarts services).
+
+## Cutover steps
+1. **Dry run first, always:**
+   ```
+   ansible-playbook playbooks/services.yml --check --diff --tags hermes,paseo
+   ```
+   Confirm 0 failed. If anything's red, stop — do not proceed to step 2.
+
+2. **Take the backup** (see Rollback point above). Do not skip this.
+
+3. **Stop the bare-metal services manually** (the `hermes`/`paseo` roles' compose-up
+   tasks don't stop the old systemd units themselves — that's intentional, so a
+   `--check` run never touches live state):
+   ```
+   sudo systemctl stop hermes-gateway@hermes hermes-dashboard@hermes paseo.service
+   sudo systemctl disable hermes-gateway@hermes hermes-dashboard@hermes paseo.service
+   ```
+
+4. **Run the real cutover:**
+   ```
+   ansible-playbook playbooks/services.yml --tags hermes,paseo
+   ```
+
+5. **Verify containers are up and healthy:**
+   ```
+   docker ps --filter "name=hermes-gateway" --filter "name=hermes-dashboard" --filter "name=paseo"
+   curl -s http://127.0.0.1:8642/health   # expect 200 (or whatever the real health check needs)
+   ```
+   Check `docker logs hermes-gateway`, `docker logs hermes-dashboard`,
+   `docker logs paseo` for startup errors — especially the two `ponytail:`-flagged
+   unverified assumptions in the compose files:
+   - `HERMES_UID`/`HERMES_GID` env vars actually honored by the entrypoint (unverified).
+   - Paseo's healthcheck command (`bash -c 'exec 3<>/dev/tcp/...'`) — `bash` presence
+     in the Paseo image unverified.
+
+6. **Functional check from a real client** (Telegram message, or dashboard at
+   `http://<tailscale-ip>:9119`) — confirm Hermes responds and session/memory look
+   intact (same recent conversation history visible).
+
+7. **If anything's wrong:** stop the new containers (`docker compose -f
+   ansible/roles/hermes/files/compose.yml down`, same for paseo), re-enable +
+   restart the old systemd units, and consider `restore.yml` if state got corrupted.
+
+8. **If everything's good:** leave the old systemd units disabled (don't delete
+   their unit files yet — keep as a fallback for one full cycle of normal use,
+   e.g. a few days, before removing `/home/hermes/.local/bin/hermes`,
+   `/home/hermes/.local/bin/paseo`, and their systemd unit files for real).
+
+## Known open risks (carried from Brief D/E review, not yet resolved)
+- `HERMES_UID`/`HERMES_GID` env var honoring by the image entrypoint — unverified.
+- Container UID `1003:1003` for paseo forced for bind-mount ownership — untested.
+- Healthcheck commands' binary existence inside each image — unverified
+  (`/opt/hermes/.venv/bin/python` for hermes, `bash` for paseo).
+- `API_SERVER_KEY` needs to be set in `.env` before first `docker compose up` —
+  the compose file has `:?set API_SERVER_KEY in .env}`, so it'll fail loudly if
+  missing, not silently.
+- `deploy.sh` and its systemd-unit-linking logic are NOT updated for compose —
+  deliberately out of scope; it only matters if you ever need to re-run it for the
+  bare-metal fallback path.
+
+## Explicitly out of scope for this runbook
+- Blue-green / zero-downtime cutover — deferred to wiki
+  (`staging/concepts/vps-docker-ansible-migration.md`). This runbook is a planned
+  downtime cutover (steps 3-4 stop the old thing before starting the new thing).
+- 9router role changes — untouched, pinned digest, manual-bump-only.
+- Paseo's Hermes ACP integration — dropped, see "What changes" above.
