@@ -1,0 +1,21 @@
+# Isolated project, no shared network.
+name: paseo
+services:
+  paseo:
+    image: ghcr.io/getpaseo/paseo@sha256:ea6a922a7282d5368f7d0eae17caff6ce5ccde2bbac3f559c2e4c483d1cf2059 # :latest index, resolved 2026-10-10
+    container_name: paseo
+    restart: unless-stopped
+    # Host netns: config.json listens on <tailscale_ip>:6767 exactly as the bare install did.
+    network_mode: host
+    # ponytail: run as host hermes uid so identity files keep ownership; image user is "paseo".
+    user: "1003:1003"
+    volumes:
+      # Identity/auth files (daemon-keypair.json, server-id, push-tokens.json, local-credential, cli-client-id, config.json).
+      - /home/hermes/.paseo:/home/paseo/.paseo
+    healthcheck:
+      # No documented HTTP endpoint: TCP connect only. Needs bash in image (unverified).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/${TAILSCALE_IP:?set TAILSCALE_IP}/6767"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

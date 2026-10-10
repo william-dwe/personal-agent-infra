@@ -17,3 +17,10 @@
       tags: [prometheus, monitoring]
     - role: grafana
       tags: [grafana, monitoring]
+    # Cutover-only: the bare-systemd units on :9119/:6767 must be stopped first.
+    # These never run implicitly; invoke explicitly with --tags hermes or --tags paseo.
+    - role: hermes
+      hermes_compose: true
+      tags: [hermes, never]
+    - role: paseo
+      tags: [paseo, never]

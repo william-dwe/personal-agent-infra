@@ -1,0 +1,3 @@
+agent_user: hermes
+admin_user: ubuntu
+runtime_env: /etc/personal-agent-infra.env

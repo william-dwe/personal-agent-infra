@@ -1,0 +1,35 @@
+# Isolated project: own default network, nothing shared with core/butler/paseo.
+name: hermes
+x-hermes: &hermes
+  image: nousresearch/hermes-agent@sha256:9774f4f39a9bb8c2f68ce728ed5e99ddbad282163be56764afacf88ed952b784 # :latest manifest list, resolved 2026-10-10
+  restart: unless-stopped
+  volumes:
+    # Bind mount of existing state; image HERMES_HOME=/opt/data.
+    - /home/hermes/.hermes:/opt/data
+  environment:
+    # ponytail: assumes entrypoint honors HERMES_UID/GID; not verified. Match host user hermes (1003).
+    - HERMES_UID=1003
+    - HERMES_GID=1003
+    - API_SERVER_ENABLED=true
+    - API_SERVER_KEY=${API_SERVER_KEY:?set API_SERVER_KEY in .env}
+
+services:
+  gateway:
+    <<: *hermes
+    container_name: hermes-gateway
+    command: ["gateway", "run"]
+    healthcheck:
+      # ponytail: python from image venv, curl presence unverified.
+      test: ["CMD", "/opt/hermes/.venv/bin/python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8642/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # 8642 stays unpublished: API key only protects it if not exposed.
+  dashboard:
+    <<: *hermes
+    container_name: hermes-dashboard
+    command: ["dashboard", "--host", "0.0.0.0", "--port", "9119", "--insecure", "--tui", "--no-open"]
+    ports:
+      # Tailscale IP only; Docker-published ports bypass UFW.
+      - "${TAILSCALE_IP:?set TAILSCALE_IP}:9119:9119"
