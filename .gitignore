@@ -22,3 +22,4 @@ ansible/backups/
 # OS / Editor files
 .DS_Store
 *.log
+workspace/briefs/

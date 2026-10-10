@@ -1,6 +1,6 @@
 # VPS Docker Migration — Cutover Runbook
 
-Status: DRAFT, not executed. This is the step that actually switches hermes-gateway,
+Status: EXECUTED 2026-10-10 (hermes-gateway, hermes-dashboard, paseo now Docker). This step actually switches hermes-gateway,
 hermes-dashboard, and paseo from bare-metal systemd units to Docker containers. It is
 deliberately human-reviewed and NOT something OMP or Orchestrator runs unattended.
 
@@ -102,3 +102,18 @@ documented rollback (stops services, extracts archive, restarts services).
   downtime cutover (steps 3-4 stop the old thing before starting the new thing).
 - 9router role changes — untouched, pinned digest, manual-bump-only.
 - Paseo's Hermes ACP integration — dropped, see "What changes" above.
+
+## Findings from the 2026-10-10 execution
+- `API_SERVER_KEY` must exist in TWO places. The compose `:?` check reads `/etc/personal-agent-infra.env`
+  (rendered from the dotenvx-encrypted `.env`; add with `dotenvx set API_SERVER_KEY '<v>' -f .env`, then
+  `scripts/dotenv-env.sh render`). The gateway runs multiplexed (default/librarian/orchestrator/researcher), where
+  `agent/secret_scope.py` treats `API_SERVER_ENABLED/HOST/PORT` as global env but `API_SERVER_KEY` as a profile
+  credential read only from the profile `.env`. Without the key in `/home/hermes/.hermes/.env` the API server never
+  starts and the compose healthcheck on `127.0.0.1:8642/health` stays unhealthy. Rotate in both places.
+- `docker compose ... --env-file /etc/personal-agent-infra.env` needs root (file is `root:root 0600`); use `sudo` or Ansible.
+- The first `--tags hermes,paseo` run failed on `--wait` (gateway unhealthy) and never reached paseo; re-run `--tags paseo`.
+- Container start migrates `config.yaml` schema 49 -> 50 (backups in `/home/hermes/.hermes/backups/config/`).
+  Rollback to the bare-metal binary is untested against the new schema.
+- `backup.yml` stops all services/containers (~2.5 min). 9router data lives in `/srv/agent-infra/data/9router`
+  (the container's actual bind mount), NOT under `infra_dir`; `backup.yml` does not cover it. Archive it separately.
+- Verified: HERMES_UID/GID honored (entrypoint logs "Changing hermes UID to 1003"); paseo healthcheck passes.
