@@ -1,0 +1,8 @@
+- name: Install Herdr
+  ansible.builtin.shell: curl -fsSL https://herdr.dev/install.sh | sh
+  become_user: "{{ admin_user }}"
+  environment:
+    HOME: "/home/{{ admin_user }}"
+  args:
+    creates: "/home/{{ admin_user }}/.local/bin/herdr"
+  when: not ansible_check_mode

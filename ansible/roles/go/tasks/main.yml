@@ -1,0 +1,24 @@
+- name: Download Go archive
+  ansible.builtin.get_url:
+    url: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
+    dest: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+    checksum: "sha256:{{ go_sha256 }}"
+    mode: "0644"
+  when: not ansible_check_mode
+
+- name: Extract Go
+  ansible.builtin.unarchive:
+    src: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/go-{{ go_version }}/bin/go"
+    extra_opts:
+      - "--transform=s,^go,go-{{ go_version }},"
+  when: not ansible_check_mode
+
+- name: Link Go command
+  ansible.builtin.file:
+    src: "/opt/go-{{ go_version }}/bin/go"
+    dest: /usr/local/bin/go
+    state: link
+  when: not ansible_check_mode
